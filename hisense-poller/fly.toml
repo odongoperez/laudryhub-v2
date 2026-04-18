@@ -1,0 +1,20 @@
+# fly.toml app configuration file generated for laundryhub-poller-stechbahn on 2026-04-18T11:53:47+02:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'laundryhub-poller-stechbahn'
+primary_region = 'fra'
+
+[build]
+  dockerfile = 'Dockerfile'
+
+[env]
+  GRACE_MINUTES = '5'
+  IDLE_CUTOFF_MINUTES = '5'
+  POLL_INTERVAL_SECONDS = '10'
+
+[[vm]]
+  memory = '256mb'
+  cpus = 1
+  memory_mb = 256

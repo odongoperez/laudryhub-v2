@@ -1,5 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getDatabase, ref, set, get, onValue, remove, update, push, query, orderByChild, limitToLast } from "firebase/database";
+import { getAuth, signInAnonymously, onAuthStateChanged } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FB_API_KEY || "",
@@ -13,6 +14,21 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
+
+// Anonymous sign-in so Realtime Database rules can gate on `auth != null`.
+// Required for the app to read any auth-protected path once rules are
+// published. Enable Anonymous sign-in in Firebase Console -> Authentication
+// -> Sign-in method -> Anonymous.
+if (typeof window !== "undefined") {
+  const auth = getAuth(app);
+  onAuthStateChanged(auth, (u) => {
+    if (!u) {
+      signInAnonymously(auth).catch((e) => {
+        console.warn("Firebase anonymous auth failed:", e?.code || e?.message || e);
+      });
+    }
+  });
+}
 
 const DB = {
   // ── Users ──
@@ -46,9 +62,21 @@ const DB = {
 
   // ── ESP32 Status ──
   onEsp32Status(cb) { return onValue(ref(db, "esp32_status"), s => cb(s.exists() ? s.val() : null)); },
+  async sendEspCommand(cmd) { await set(ref(db, "esp32_command"), cmd); },
+
+  // ── Hisense (written by hisense-poller/poller.py) ──
+  onHisense(cb) { return onValue(ref(db, "hisense"), s => cb(s.exists() ? s.val() : null)); },
+  onNotifications(cb, count = 20) {
+    const q = query(ref(db, "notifications"), orderByChild("ts"), limitToLast(count));
+    return onValue(q, s => {
+      if (!s.exists()) return cb([]);
+      cb(Object.values(s.val()).sort((a, b) => (a.ts || 0) - (b.ts || 0)));
+    });
+  },
 
   // ── Wash History ──
   async addWashRecord(record) { await set(ref(db, `history/${record.id}`), record); },
+  async clearHistory() { await remove(ref(db, "history")); },
   onHistoryChange(cb) {
     return onValue(ref(db, "history"), s => {
       if (!s.exists()) return cb([]);
@@ -61,11 +89,14 @@ const DB = {
     const msgRef = push(ref(db, "chat"));
     await set(msgRef, { ...msg, timestamp: Date.now() });
   },
+  async deleteMessage(key) { await remove(ref(db, `chat/${key}`)); },
+  async editMessage(key, text) { await update(ref(db, `chat/${key}`), { text, edited: true, editedAt: Date.now() }); },
   onChatMessages(cb, count = 50) {
     const q = query(ref(db, "chat"), orderByChild("timestamp"), limitToLast(count));
     return onValue(q, s => {
       if (!s.exists()) return cb([]);
-      cb(Object.values(s.val()).sort((a, b) => a.timestamp - b.timestamp));
+      const entries = Object.entries(s.val()).map(([k, v]) => ({ ...v, _key: k }));
+      cb(entries.sort((a, b) => a.timestamp - b.timestamp));
     });
   },
 };

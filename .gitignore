@@ -36,3 +36,10 @@ next-env.d.ts
 # IDE
 .vscode/
 .idea/
+
+# Hisense poller secrets
+hisense-poller/.env
+hisense-poller/service-account.json
+hisense-poller/__pycache__/
+hisense-poller/venv/
+hisense-poller/.venv/

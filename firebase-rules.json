@@ -1,20 +1,21 @@
 {
   "rules": {
-    "users": {
-      ".read": true,
-      ".write": true
-    },
-    "machine": {
-      ".read": true,
-      ".write": true
-    },
-    "schedule": {
-      ".read": true,
-      ".write": true
-    },
-    "config": {
-      ".read": true,
-      ".write": true
-    }
+    "$other": { ".read": false, ".write": false },
+
+    "users":         { ".read": "auth != null", ".write": "auth != null" },
+    "schedule":      { ".read": "auth != null", ".write": "auth != null" },
+    "config":        { ".read": "auth != null", ".write": "auth != null" },
+    "chat":          { ".read": "auth != null", ".write": "auth != null", ".indexOn": ["timestamp"] },
+    "history":       { ".read": "auth != null", ".write": "auth != null" },
+
+    "machine":       { ".read": true,           ".write": true },
+    "esp32_status":  { ".read": true,           ".write": true },
+    "esp32_command": { ".read": true,           ".write": "auth != null" },
+
+    "hisense":       { ".read": "auth != null", ".write": false },
+    "notifications": { ".read": "auth != null", ".write": false, ".indexOn": ["ts"] },
+    "relay_state":   { ".read": true,           ".write": true },
+    "relay_command": { ".read": true,           ".write": "auth != null" },
+    "status":        { ".read": true,           ".write": true }
   }
 }
