@@ -473,8 +473,28 @@ async def main() -> None:
             pass
 
 
+def _supervisor() -> None:
+    """Self-healing outer loop. Any crash or natural exit from main() is
+    caught and main() is re-started after a short back-off. The process
+    never exits on its own, so Fly never marks the machine 'stopped'."""
+    backoff = 5
+    while True:
+        try:
+            asyncio.run(main())
+            # main() returned cleanly (e.g. credentials rejected 3x). Wait
+            # longer before retrying so a bad secret doesn't spam the API.
+            log.warning("main() exited cleanly — restarting in 60s")
+            time.sleep(60)
+            backoff = 5
+        except KeyboardInterrupt:
+            log.info("KeyboardInterrupt — exiting")
+            return
+        except Exception as e:
+            log.exception("UNCAUGHT in main(): %s", e)
+            log.info("restarting in %ds", backoff)
+            time.sleep(backoff)
+            backoff = min(backoff * 2, 300)
+
+
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        pass
+    _supervisor()

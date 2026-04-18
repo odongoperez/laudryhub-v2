@@ -18,3 +18,9 @@ primary_region = 'fra'
   memory = '256mb'
   cpus = 1
   memory_mb = 256
+
+# Restart forever no matter what. No max_retries — without this cap,
+# Fly keeps restarting the machine even after repeated failures, which
+# is what we want for an unattended background worker.
+[[restart]]
+  policy = 'always'
