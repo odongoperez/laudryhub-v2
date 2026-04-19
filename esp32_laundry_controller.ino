@@ -1,5 +1,5 @@
 /*
- * LaundryHub ESP32 v7.1 — Self-healing + relay debounce
+ * LaundryHub ESP32 v7.2 — Self-healing + relay debounce
  *
  *  Polls  /machine/running  every 1 second  (fast response)
  *  Reports /esp32_status   every 15 seconds (heartbeat)
@@ -11,9 +11,13 @@
  *    • Relay OFF if no FB contact > 3 min while relay is on
  *    • Relay OFF if wash runs longer than durationMs + 1 min
  *
- *  v7.1 fixes (vs v7):
- *    • Removed aggressive "5 fails = relay off" — was flapping the
- *      relay on flaky WiFi. The 3-min watchdog above is sufficient.
+ *  v7.2 fixes (vs v7):
+ *    • Removed aggressive "5 fails = relay off" and the "3-min no FB =
+ *      relay off" watchdog — both were cutting the relay mid-wash on
+ *      weak WiFi (-78 dBm was enough to trigger them). On silent WiFi
+ *      failure it's SAFER to leave the relay alone and let the wash
+ *      continue. The 5-min reboot watchdog remains as the only
+ *      emergency recovery path.
  *    • 3-tick debounce on /machine/running — single bad reads no
  *      longer click the relay.
  *    • Failed reads (empty body) leave the relay alone.
@@ -128,7 +132,7 @@ void connectWifi() {
 void setup() {
   Serial.begin(115200);
   delay(500);
-  Serial.println("\n=== LaundryHub ESP32 v7.1 (self-heal) ===");
+  Serial.println("\n=== LaundryHub ESP32 v7.2 (self-heal) ===");
 
   bootTime = millis();
   pinMode(RELAY_PIN, OUTPUT);
@@ -212,7 +216,7 @@ void loop() {
     String running = fbGet("/machine/running");
 
     // Ignore empty / failed reads — don't touch the relay on a flaky read.
-    // The 3-minute "no FB while relay on" watchdog below catches real outages.
+    // The 5-minute FB reboot watchdog at the top of loop() catches real outages.
     if (running.length() == 0) {
       // network glitch — leave relay alone
     } else if (running == "true" || running == "false" || running == "null") {
@@ -262,17 +266,13 @@ void loop() {
         }
       }
     }
-    // Note: removed the failCount>=5 immediate cutoff — it was punishing
-    // flaky WiFi by cutting power mid-wash. The 3-min watchdog below is
-    // sufficient and far less disruptive.
-
-    // No success for 3 min while relay on = off (real outage)
-    if (relayState && now - lastSuccess > 180000) {
-      Serial.println("[SAFETY] No FB 3min — OFF");
-      setRelay(false);
-      washStartedAt = 0;
-      lastSuccess = now;
-    }
+    // NO aggressive "lost contact = cut relay" safety. Weak WiFi caused
+    // this to misfire mid-wash. If FB is truly unreachable for 5 min, the
+    // top-of-loop watchdog will REBOOT the ESP32 (which opens the relay in
+    // the process). That's the only emergency cut we do.
+    //
+    // Philosophy: on a silent WiFi failure it's SAFER to leave the relay
+    // alone and let the wash continue, than to cut power mid-cycle.
   }
 
   // ── Remote command listener (every 5s) ─────────────────────────────
