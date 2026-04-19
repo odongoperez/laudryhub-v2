@@ -129,7 +129,7 @@ function ChatMod({user,cfg,users,onClose,initTo}){
 }
 
 /* Header */
-function Head({cfg,user,admin,onOut,onProf,onChat,unread,esp}){const[menu,setMenu]=useState(false);
+function Head({cfg,user,admin,onOut,onProf,onChat,onHelp,unread,esp}){const[menu,setMenu]=useState(false);
 return<div style={{padding:"10px 14px",position:"relative"}}><div className="sb">
 <div className="row"><div className="av" style={{width:36,height:36,fontSize:18,background:bg}}>{admin?"🛡️":(cfg.appEmoji||"🫧")}</div><div><div style={{fontWeight:900,fontSize:15,color:"#e2e6ef"}}>{admin?"Admin":cfg.appName}</div><div style={{fontSize:9,color:"#555b6e"}}>{admin?"Control panel":"Hi, "+user.name}</div></div></div>
 <div className="row" style={{gap:5}}>
@@ -137,10 +137,76 @@ return<div style={{padding:"10px 14px",position:"relative"}}><div className="sb"
 {cfg.chatEnabled!==false&&<button onClick={onChat} className="nb" style={{padding:"8px 14px",fontSize:12,fontWeight:700,position:"relative"}}>Chat{unread>0&&<span style={{position:"absolute",top:-5,right:-5,minWidth:18,height:18,padding:"0 5px",borderRadius:9,background:"#f87171",fontSize:9,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800}}>{unread>9?"9+":unread}</span>}</button>}
 <button onClick={()=>setMenu(!menu)} className="nb" style={{padding:"8px 13px",fontSize:17,lineHeight:1}}>☰</button>
 </div></div>
-{menu&&<div className="nm" style={{position:"absolute",right:14,top:52,zIndex:100,padding:6,minWidth:160,animation:"fu .15s ease"}}>
+{menu&&<div className="nm" style={{position:"absolute",right:14,top:52,zIndex:100,padding:6,minWidth:170,animation:"fu .15s ease"}}>
 {!admin&&<button onClick={()=>{onProf();setMenu(false)}} className="nb" style={{width:"100%",textAlign:"left",marginBottom:4,fontSize:12}}><span style={{marginRight:6}}>{user.emoji||"😊"}</span>Profile & Settings</button>}
+{onHelp&&<button onClick={()=>{onHelp();setMenu(false)}} className="nb" style={{width:"100%",textAlign:"left",marginBottom:4,fontSize:12}}><span style={{marginRight:6}}>❓</span>How to use the app</button>}
 <button onClick={()=>{onOut();setMenu(false)}} className="nb" style={{width:"100%",textAlign:"left",fontSize:12,color:"#f87171"}}>Sign Out</button>
 </div>}
+</div>;}
+
+/* Help / tutorial modal — short visual guide built into the app */
+function HelpModal({cfg,onClose}){
+const c=cfg.primaryColor;
+const Sec=({n,emo,t,children})=><div style={{paddingBottom:14,marginBottom:14,borderBottom:`1px solid ${ls}`}}><div className="row" style={{gap:8,marginBottom:6}}><div className="av" style={{width:28,height:28,fontSize:13,background:bg,fontWeight:800,color:c}}>{n}</div><div style={{fontWeight:800,fontSize:14,color:"#e2e6ef"}}>{emo} {t}</div></div><div style={{fontSize:12,color:"#8890a4",lineHeight:1.55,paddingLeft:36}}>{children}</div></div>;
+const K=({color,children})=><span style={{display:"inline-block",padding:"1px 8px",borderRadius:6,fontSize:10,fontWeight:800,background:`${color}22`,color,marginRight:4,letterSpacing:.4}}>{children}</span>;
+return<div>
+<div style={{textAlign:"center",marginBottom:18}}>
+  <div className="av" style={{width:54,height:54,fontSize:26,margin:"0 auto 8px",background:bg}}>{cfg.appEmoji||"🫧"}</div>
+  <div style={{fontWeight:900,fontSize:18,color:"#e2e6ef"}}>How to use {cfg.appName||"LaundryHub"}</div>
+  <div style={{fontSize:11,color:"#555b6e",marginTop:4}}>A 60-second tour</div>
+</div>
+
+<Sec n="1" emo="🚦" t="Read the status badge">
+The big circle at the top tells you everything:
+<div style={{marginTop:6,lineHeight:2}}>
+<K color="#4ade80">AVAILABLE</K> free — go wash<br/>
+<K color="#f87171">OFFLINE</K> machine unplugged or no Wi-Fi<br/>
+<K color="#60a5fa">IN USE</K> someone is washing<br/>
+<K color="#fbbf24">WASH DONE</K> finished, power cuts in 5 min
+</div>
+</Sec>
+
+<Sec n="2" emo="✨" t="Start a wash">
+1. Load your laundry, close the door<br/>
+2. Pick the cycle on the <b>machine itself</b><br/>
+3. Tap <b style={{color:c}}>✨ Turn ON</b> in the app, then press Start on the machine<br/>
+4. The app picks it up within 10 seconds — phase, remaining minutes, and end time appear automatically
+</Sec>
+
+<Sec n="3" emo="⏸" t="Pause / resume">
+Press pause on the machine. The app turns red and shows <K color="#f87171">⏸ PAUSED</K>. Resume on the machine and the timer continues — no need to touch the app.
+</Sec>
+
+<Sec n="4" emo="✓" t="When the wash ends">
+The circle goes amber and a 5-minute <b>Powering off in M:SS</b> countdown starts so you have time to grab your clothes. Power cuts automatically. Tap <b style={{color:"#fbbf24"}}>🔌 Turn OFF now</b> if you want to cut early.
+You'll get a phone notification <i>"Machine free!"</i> if you allowed notifications.
+</Sec>
+
+<Sec n="5" emo="📅" t="Reserve a slot">
+Scroll to <b>📅 Schedule a slot</b>. Pick date, start time, end time → tap <b>Reserve slot</b>.
+While your slot is active, no one else can start a wash.
+</Sec>
+
+<Sec n="6" emo="💬" t="Chat with housemates">
+Tap <b>Chat</b> in the top-right. Pick someone or <b>📢 Everyone</b>. Long-press your own messages to edit or delete.
+</Sec>
+
+<Sec n="7" emo="✨" t="Your wash history">
+Scroll to <b>✨ My washes</b> to see total washes, this month, hours, water (L) and energy (kWh) you've used.
+</Sec>
+
+<div style={{padding:14,marginBottom:8,borderRadius:12,background:bg,boxShadow:`inset 3px 3px 6px ${ds},inset -3px -3px 6px ${ls}`}}>
+<div style={{fontSize:12,fontWeight:800,color:"#e2e6ef",marginBottom:8}}>❓ Common questions</div>
+<div style={{fontSize:11,color:"#8890a4",lineHeight:1.6}}>
+<div style={{marginBottom:8}}><b style={{color:"#c8cdd8"}}>Says offline but plugged in?</b><br/>Wi-Fi hiccup. Auto-recovers in 5 min. If &gt;10 min, message admin.</div>
+<div style={{marginBottom:8}}><b style={{color:"#c8cdd8"}}>Forgot my PIN?</b><br/>Ask admin to reset it.</div>
+<div style={{marginBottom:8}}><b style={{color:"#c8cdd8"}}>Install on phone like an app?</b><br/>Chrome: menu ⋮ → <b>Add to Home screen</b>. Safari: share → <b>Add to Home Screen</b>.</div>
+<div><b style={{color:"#c8cdd8"}}>Stuck on stale info?</b><br/>Pull-to-refresh. State catches up within 10s.</div>
+</div>
+</div>
+
+<button onClick={onClose} className="nb nb-p" style={{width:"100%",marginTop:14,padding:"12px 0",fontSize:14,fontWeight:800,background:c}}>Got it!</button>
+<div style={{textAlign:"center",fontSize:9,color:"#555b6e",marginTop:10}}>Need more help? Message admin in Chat.</div>
 </div>;}
 
 /* Login */
@@ -148,7 +214,8 @@ function Login({onLogin,cfg}){const[m,setM]=useState("user");const[u,setU]=useSt
 
 /* ═══ USER ═══ */
 function UserDash({user:init,cfg,onOut,toast}){
-const[user,sU]=useState(init);const[mac,sM]=useState({running:false});const[sch,sSch]=useState([]);const[users,sUs]=useState([]);const[esp,sE]=useState(null);const[sd,sSd]=useState("");const[st,sSt]=useState("");const[se,sSe]=useState("");const[now,sN]=useState(Date.now());const[showProf,sP]=useState(false);const[editSch,sES]=useState(null);const[showChat,sC]=useState(false);const[chatTo,sChatTo]=useState("all");const[msgs,sMs]=useState([]);const[hist,sH]=useState([]);const[hs,sHs]=useState(null);const af=useRef(false);const prev=useRef(false);const warned=useRef(false);
+const[user,sU]=useState(init);const[mac,sM]=useState({running:false});const[sch,sSch]=useState([]);const[users,sUs]=useState([]);const[esp,sE]=useState(null);const[sd,sSd]=useState("");const[st,sSt]=useState("");const[se,sSe]=useState("");const[now,sN]=useState(Date.now());const[showProf,sP]=useState(false);const[showHelp,sShowHelp]=useState(false);const[editSch,sES]=useState(null);const[showChat,sC]=useState(false);const[chatTo,sChatTo]=useState("all");const[msgs,sMs]=useState([]);const[hist,sH]=useState([]);const[hs,sHs]=useState(null);const af=useRef(false);const prev=useRef(false);const warned=useRef(false);
+useEffect(()=>{try{if(!localStorage.getItem("lh_help_seen")){sShowHelp(true);localStorage.setItem("lh_help_seen","1")}}catch{}},[]);
 
 useEffect(()=>{const a=DB.onMachineChange(sM);const b=DB.onScheduleChange(sSch);const c=DB.onUsersChange(sUs);const d=DB.onEsp32Status(sE);const e=DB.onChatMessages(sMs);const f=DB.onHistoryChange(sH);const g=DB.onHisense(sHs);const iv=setInterval(()=>sN(Date.now()),1000);return()=>{a();b();c();d();e();f();g();clearInterval(iv)}},[]);
 useEffect(()=>{if(typeof window!=="undefined"&&"Notification" in window&&Notification.permission==="default"){Notification.requestPermission().catch(()=>{})}},[]);
@@ -185,10 +252,11 @@ const fmt=d=>{const x=new Date(d);return x.toLocaleDateString("en-GB",{weekday:"
 const openChat=(toId)=>{sChatTo(toId||"all");sC(true);DB.updateUser(user.id,{lastRead:Date.now()})};
 
 return<div style={{minHeight:"100vh",background:bg}}>
-<Head cfg={cfg} user={user} onOut={onOut} onProf={()=>sP(true)} onChat={()=>openChat("all")} unread={unread} esp={esp}/>
+<Head cfg={cfg} user={user} onOut={onOut} onProf={()=>sP(true)} onHelp={()=>sShowHelp(true)} onChat={()=>openChat("all")} unread={unread} esp={esp}/>
 {cfg.maintenance&&<MntBanner/>}
 
 {/* Profile — users can edit name, PIN, emoji */}
+{showHelp&&<Modal onClose={()=>sShowHelp(false)}><HelpModal cfg={cfg} onClose={()=>sShowHelp(false)}/></Modal>}
 {showProf&&<Modal onClose={()=>sP(false)}>
   <ProfileEditor user={user} cfg={cfg} onSave={u2=>{sU(u2);sP(false)}} onClose={()=>sP(false)} toast={toast}/>
 </Modal>}
