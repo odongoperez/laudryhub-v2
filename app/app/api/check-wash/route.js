@@ -2,6 +2,14 @@ export async function GET(request) {
   const dbUrl = process.env.NEXT_PUBLIC_FB_DB_URL;
   if (!dbUrl) return Response.json({ error: "No DB URL" }, { status: 500 });
 
+  // Require a secret to actually mutate. Anyone (cron, scanner, random
+  // crawler) hitting this URL without ?key=... gets a read-only response.
+  // Set CHECK_WASH_KEY in Vercel env vars to enable mutations.
+  const url = new URL(request.url);
+  const providedKey = url.searchParams.get("key");
+  const expectedKey = process.env.CHECK_WASH_KEY || "";
+  const canMutate = expectedKey && providedKey === expectedKey;
+
   try {
     // Read machine state
     const res = await fetch(`${dbUrl}/machine.json`);
@@ -16,6 +24,13 @@ export async function GET(request) {
     const endTime = startTime + durationMs;
 
     if (now >= endTime) {
+      if (!canMutate) {
+        return Response.json({
+          status: "expired_but_not_stopped",
+          action: "none",
+          note: "Provide ?key=... to enable auto-stop",
+        });
+      }
       // Wash expired — stop it
       const stopData = {
         running: false,
