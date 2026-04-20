@@ -1,5 +1,5 @@
 /*
- * LaundryHub ESP32 v7.2 — Self-healing + relay debounce
+ * LaundryHub ESP32 v7.3 — Self-healing + relay debounce
  *
  *  Polls  /machine/running  every 1 second  (fast response)
  *  Reports /esp32_status   every 15 seconds (heartbeat)
@@ -8,8 +8,13 @@
  *    • Force reboot if WiFi stays disconnected > 5 min
  *    • Force reboot if no successful Firebase contact > 5 min
  *    • Auto reboot every 24h to prevent heap fragmentation
- *    • Relay OFF if no FB contact > 3 min while relay is on
  *    • Relay OFF if wash runs longer than durationMs + 1 min
+ *    • Brief WiFi/FB glitches leave the relay alone (wash continues)
+ *
+ *  v7.3 fixes (vs v7):
+ *    • CRASH RECOVERY: if /machine/running is true on boot, close the
+ *      relay IMMEDIATELY instead of waiting for the 3-tick debounce —
+ *      minimizes power interruption after a crash/brownout mid-wash.
  *
  *  v7.2 fixes (vs v7):
  *    • Removed aggressive "5 fails = relay off" and the "3-min no FB =
@@ -132,7 +137,7 @@ void connectWifi() {
 void setup() {
   Serial.begin(115200);
   delay(500);
-  Serial.println("\n=== LaundryHub ESP32 v7.2 (self-heal) ===");
+  Serial.println("\n=== LaundryHub ESP32 v7.3 (self-heal) ===");
 
   bootTime = millis();
   pinMode(RELAY_PIN, OUTPUT);
@@ -149,6 +154,19 @@ void setup() {
 
   String t = fbGet("/machine/running");
   Serial.printf("[FB] running=%s\n", t.c_str());
+
+  // CRASH RECOVERY: if /machine/running was TRUE at the moment we booted,
+  // a wash was in progress when we crashed / browned-out / rebooted. Close
+  // the relay IMMEDIATELY (no debounce wait) so the machine doesn't lose
+  // power mid-cycle for any longer than the boot took.
+  if (t == "true") {
+    Serial.println("[BOOT] wash in progress — restoring relay ON immediately");
+    setRelay(true);
+    washStartedAt = millis();
+    // Pre-seed the debounce so loop() doesn't fight this decision
+    pendingState = "true";
+    pendingCount = DEBOUNCE_TICKS;
+  }
 
   // Capture current command timestamp so we don't act on stale commands.
   // Retry up to 5 times — if the very first fbGet failed, we'd otherwise
