@@ -1,4 +1,4 @@
-const VERSION = "v5-housemates-spinner-api";
+const VERSION = "v6-quicker-turnoff";
 const STATIC_CACHE = `laundryhub-static-${VERSION}`;
 const RUNTIME_CACHE = `laundryhub-runtime-${VERSION}`;
 
