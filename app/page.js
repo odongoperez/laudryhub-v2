@@ -9,20 +9,28 @@ const EMO=["😊","😎","🧑‍💻","👩‍🔧","🧑‍🎓","👨‍🍳"
 const bg="#1e2233",ls="#282d44",ds="#141620";
 function isOn(e){return e&&e.lastSeen&&(Date.now()-e.lastSeen)<20000}
 /* Mobile back button closes overlays (chat/help/profile) instead of navigating away from the app.
-   Pushes a history entry on open; popstate fires when user presses back → closes via onClose. */
+   Pushes a history entry on open; popstate fires when user presses back → closes via onClose.
+   IMPORTANT: only re-run on `open` change. `onClose` lives in a ref so parent re-renders don't
+   reinitialize the effect (which would synthesize a back-navigation and self-close the modal). */
 function useBackToClose(open,onClose){
+  const onCloseRef=useRef(onClose);
+  onCloseRef.current=onClose;
   useEffect(()=>{
     if(!open||typeof window==="undefined")return;
-    const token="lh_overlay_"+Date.now();
+    const token="lh_ovr_"+Date.now()+"_"+Math.random().toString(36).slice(2,7);
+    let alreadyPopped=false;
     try{window.history.pushState({lhOverlay:token},"")}catch{}
-    const handler=()=>{onClose&&onClose()};
+    const handler=()=>{alreadyPopped=true;if(onCloseRef.current)onCloseRef.current()};
     window.addEventListener("popstate",handler);
     return()=>{
       window.removeEventListener("popstate",handler);
-      /* If component unmounts while the pushed state is still on top, pop it cleanly */
-      try{if(window.history.state&&window.history.state.lhOverlay===token)window.history.back()}catch{}
+      /* Only pop our pushed state if popstate didn't already fire (user closed via X / backdrop, not back btn).
+         And only if our token is still the topmost — guards against unrelated navigation popping it earlier. */
+      if(!alreadyPopped){
+        try{if(window.history.state&&window.history.state.lhOverlay===token)window.history.back()}catch{}
+      }
     };
-  },[open,onClose]);
+  },[open]);
 }
 /* RSSI helpers — dBm → % / label / color / bar count */
 function rssiPct(r){if(!r||r===0)return 0;if(r>=-50)return 100;if(r<=-100)return 0;return Math.round(2*(r+100));}
