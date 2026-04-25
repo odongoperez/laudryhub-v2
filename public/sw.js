@@ -1,4 +1,4 @@
-const VERSION = "v7-stable-modals";
+const VERSION = "v8-machine-started-attribution";
 const STATIC_CACHE = `laundryhub-static-${VERSION}`;
 const RUNTIME_CACHE = `laundryhub-runtime-${VERSION}`;
 
