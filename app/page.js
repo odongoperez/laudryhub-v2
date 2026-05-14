@@ -459,6 +459,20 @@ return<div className="nm"><div className="sec"><span className="sec-ico">🔌</s
     {[{l:"Last poll",v:fmtAgo(hsAge),c:hsColor},{l:"State",v:hsState},{l:"Remaining",v:hs&&typeof hs.remainingMin==="number"?`${hs.remainingMin} min`:"—"},{l:"Phase",v:hs?.phaseName||"—"},{l:"Door",v:hs?.doorLocked===true?"Locked":hs?.doorLocked===false?"Unlocked":"—"},{l:"Program",v:hs?.programId!==undefined&&hs?.programId!==null?`#${hs.programId}`:"—"},{l:"Water",v:hs?.waterLiters?`${hs.waterLiters.toFixed(1)} L`:"—"},{l:"Energy",v:hs?.energyKwh?`${hs.energyKwh.toFixed(2)} kWh`:"—"},{l:"Grace",v:hs?.graceUntil&&hs.graceUntil>Date.now()?`${Math.round((hs.graceUntil-Date.now())/1000)}s left`:"—"},{l:"Device",v:hs?.nickname||hs?.deviceId?.slice(-6)||"—"}].map((s,i)=><div key={i} className="nm-in" style={{padding:"8px 10px"}}><div style={{fontSize:9,color:"#555b6e"}}>{s.l}</div><div className="M" style={{fontSize:11,color:s.c||"#e2e6ef",fontWeight:700}}>{s.v}</div></div>)}
   </div>
 </div>
+{/* Washing machine WiFi card — derived from Hisense data (hs.online + hs.updatedAt).
+    Tells you whether the Hisense cloud can talk to the machine over WiFi right now.
+    Note: Hisense doesn't expose RSSI/signal strength, so this is a binary health check. */}
+{(()=>{const washerOnline=hs&&hs.online===true&&hsAge!==null&&hsAge<60;const washerStale=hs&&hsAge!==null&&hsAge>=60&&hsAge<300;const washerOffline=!hs||hs.online===false||hsAge===null||hsAge>=300;const wColor=washerOnline?"#4ade80":washerStale?"#fbbf24":"#f87171";const wLabel=washerOnline?"Connected to WiFi":washerStale?"Stale / weak signal":(hs?.online===false?"Reported offline by Hisense":"No contact");return<div className="nm-in" style={{padding:"12px 14px",marginBottom:12}}>
+  <div className="sb" style={{alignItems:"center",marginBottom:10}}>
+    <div className="row" style={{gap:8}}><span style={{fontSize:15}}>🫧</span><div><div style={{fontSize:10,color:"#555b6e",fontWeight:700,letterSpacing:.5}}>WASHING MACHINE — WiFi</div><div className="M" style={{fontSize:14,fontWeight:800,color:wColor}}>{wLabel}</div></div></div>
+    <div className="row" style={{gap:5}}><div style={{width:8,height:8,borderRadius:4,background:wColor,animation:washerOnline?"gl 2s infinite":"bk 1s infinite"}}/></div>
+  </div>
+  <div className="g2" style={{gap:6}}>
+    {[{l:"Hisense reports",v:hs?.online===true?"Online":hs?.online===false?"Offline":"Unknown",c:wColor},{l:"Last seen by cloud",v:fmtAgo(hsAge),c:wColor},{l:"Nickname",v:hs?.nickname||"—"},{l:"Device ID",v:hs?.deviceId?hs.deviceId.slice(-12):"—"}].map((s,i)=><div key={i} className="nm-in" style={{padding:"8px 10px"}}><div style={{fontSize:9,color:"#555b6e"}}>{s.l}</div><div className="M" style={{fontSize:11,color:s.c||"#e2e6ef",fontWeight:700}}>{s.v}</div></div>)}
+  </div>
+  <div style={{fontSize:9,color:"#555b6e",fontStyle:"italic",marginTop:8,lineHeight:1.4}}>{washerOnline?"✓ Hisense cloud is receiving fresh data — the washer's WiFi is healthy.":washerStale?"⚠ Hisense data is older than 1 minute. Could be a brief WiFi blip or slow Hisense cloud — usually self-recovers.":hs?.online===false?"✗ Hisense knows the machine but reports it's offline. The washer probably lost WiFi — check power and signal at the machine.":"✗ No data from Hisense cloud at all. Either the poller is down (check ESP32 card below or Fly.io) or the machine has been offline a long time."}</div>
+  <div style={{fontSize:9,color:"#555b6e",marginTop:6}}>⚠ Hisense doesn't expose WiFi signal strength (RSSI). Health is inferred from data freshness.</div>
+</div>})()}
 <div className="nm-in" style={{padding:"12px 14px",marginBottom:12}}>
   <div className="sb" style={{alignItems:"center",marginBottom:10}}>
     <div className="row" style={{gap:8}}><span style={{fontSize:15}}>🧱</span><div><div style={{fontSize:10,color:"#555b6e",fontWeight:700,letterSpacing:.5}}>ESP32 RELAY CONTROLLER</div><div className="M" style={{fontSize:14,fontWeight:800,color:on?"#4ade80":"#f87171"}}>{on?"Online":"Offline"}</div></div></div>
