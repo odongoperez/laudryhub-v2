@@ -301,6 +301,14 @@ if(now>=end&&age>=60000){console.log("[auto-stop] firing",{age,dur,end,now});DB.
 const on=isOn(esp);const my=mac?.running&&mac.userId===user.id;const busy=mac?.running&&mac.userId!==user.id;
 const hsFresh=hs&&hs.updatedAt&&(Date.now()-hs.updatedAt<45000);const useHs=hsFresh&&(hs.running||hs.paused)&&typeof hs.remainingMin==="number";
 const hsSaysDone=hsFresh&&!hs.running&&!hs.paused;
+/* Manual override detection — when ConnectLife is stale OR the wash has overrun
+   its declared duration by a wide margin. Users get access to a "Mark as free"
+   action only when one of these is true, so the button doesn't tempt people to
+   force-stop healthy washes. */
+const hsAgeSec=hs&&hs.updatedAt?Math.round((Date.now()-hs.updatedAt)/1000):null;
+const hsStale=hs===null||(hsAgeSec!==null&&hsAgeSec>120);
+const washOverrun=mac?.running&&mac?.startTime&&mac?.durationMs&&(Date.now()-Number(mac.startTime))>(Number(mac.durationMs)*1.5);
+const manualOverrideAvailable=mac?.running&&(hsStale||washOverrun);
 const graceLeft=hs&&hs.graceUntil?Math.max(0,hs.graceUntil-now):0;const inGrace=graceLeft>0;const graceM=Math.floor(graceLeft/60000);const graceS=Math.floor((graceLeft%60000)/1000);
 const effRunning=!hsSaysDone&&(mac?.running||useHs);
 const prog=mac?.running?Math.min(1,(now-mac.startTime)/mac.durationMs):0;
@@ -331,6 +339,19 @@ return<div style={{minHeight:"100vh",background:bg}}>
 {showChat&&cfg.chatEnabled!==false&&<ChatMod user={user} cfg={cfg} users={users} onClose={()=>sC(false)} initTo={chatTo}/>}
 
 <div style={{maxWidth:580,margin:"0 auto",padding:"0 12px 14px"}}>
+{/* Manual override banner — only shows when ConnectLife seems stuck OR the wash
+    has overrun its expected duration by 1.5x. Users can mark the machine as free. */}
+{manualOverrideAvailable&&<div className="nm" style={{padding:14,marginBottom:14,border:"1px solid #fbbf2433"}}>
+  <div className="row" style={{gap:10,marginBottom:10}}>
+    <span style={{fontSize:22}}>⚠️</span>
+    <div style={{flex:1}}>
+      <div style={{fontSize:13,fontWeight:800,color:"#fbbf24"}}>{hsStale?"Cloud sync delayed":"Wash overrun"}</div>
+      <div style={{fontSize:11,color:"#8890a4",marginTop:2,lineHeight:1.4}}>{hsStale?`No update from the washer for ${hsAgeSec?Math.floor(hsAgeSec/60)+"m":"a while"}. The machine may actually be free — ConnectLife sometimes gets stuck.`:`This wash has been running for over ${Math.round((Number(mac.durationMs)||0)*1.5/60000)}m, which is much longer than expected. It probably finished a while ago.`}</div>
+    </div>
+  </div>
+  <button onClick={async()=>{if(!confirm("Mark machine as free?\n\nUse this if you've checked the machine and it's actually NOT running.\n\nThis will:\n• Open the power relay\n• Clear the wash from the app\n• Temporarily ignore ConnectLife for 10 min"))return;try{await DB.emergencyReset({reason:"user_manual_override",muteMinutes:10});toast("Machine marked free","success")}catch{toast("Reset failed — try again","error")}}} className="nb" style={{width:"100%",padding:"10px 0",fontSize:12,fontWeight:800,color:"#fbbf24",border:"1px solid #fbbf2444"}}>🛠️ Check & mark as free</button>
+  <div style={{fontSize:10,color:"#555b6e",fontStyle:"italic",marginTop:8,textAlign:"center"}}>Please physically check the machine first before tapping this</div>
+</div>}
 {/* Machine */}
 <div className="nm" style={{display:"flex",flexDirection:"column",alignItems:"center",padding:28,marginBottom:16,borderRadius:22}}>
 <Wash on={!!(effRunning||inGrace)} paused={!!(useHs&&hs.paused)} grace={inGrace} prog={useHs?Math.max(0,1-((hs.totalMin||hs.remainingMin+1)?hs.remainingMin/(hs.totalMin||(hs.remainingMin+1)):0)):prog} c={cfg.primaryColor} spinnerStyle={cfg.spinnerStyle}/>
