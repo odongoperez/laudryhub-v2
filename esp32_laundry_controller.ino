@@ -44,7 +44,7 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
 
-#define WIFI_SSID      "Stechbahn 18 01"
+#define WIFI_SSID      "Stechbahn 18 01_EXT"
 #define WIFI_PASSWORD  "Stechbahn1801!"
 #define FIREBASE_URL   "https://laundryhub-4e35b-default-rtdb.europe-west1.firebasedatabase.app"
 #define RELAY_PIN       2
