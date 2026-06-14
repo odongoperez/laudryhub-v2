@@ -1,4 +1,4 @@
-const VERSION = "v19-cleaning-rules-fix";
+const VERSION = "v20-dashboard-order-cleaning-vis";
 const STATIC_CACHE = `laundryhub-static-${VERSION}`;
 const RUNTIME_CACHE = `laundryhub-runtime-${VERSION}`;
 

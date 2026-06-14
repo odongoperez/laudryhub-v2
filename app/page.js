@@ -1,8 +1,8 @@
 "use client";
-import{useState,useEffect,useCallback,useRef}from"react";
+import{useState,useEffect,useCallback,useRef,Fragment}from"react";
 import DB from"./firebase";
 
-const DEF={primaryColor:"#6C9BCF",accentColor:"#E8A87C",appName:"LaundryHub",appEmoji:"🫧",tagline:"Smart laundry control",alertMinutesBefore:5,chatEnabled:true,maintenance:false,reduceMotion:false,defaultUserEmoji:"😊",confirmStop:true,autoLogoutMin:0,time24:true,soundOnFinish:true,gracePoweroffMin:5,defaultWashMinutes:90,spinnerStyle:"drum",themeMode:"neumo",fontFamily:"Nunito",density:"comfy",radius:"soft"};
+const DEF={primaryColor:"#6C9BCF",accentColor:"#E8A87C",appName:"LaundryHub",appEmoji:"🫧",tagline:"Smart laundry control",alertMinutesBefore:5,chatEnabled:true,maintenance:false,reduceMotion:false,defaultUserEmoji:"😊",confirmStop:true,autoLogoutMin:0,time24:true,soundOnFinish:true,gracePoweroffMin:5,defaultWashMinutes:90,spinnerStyle:"drum",themeMode:"neumo",fontFamily:"Nunito",density:"comfy",radius:"soft",dashboardOrder:["cleaning","washes","housemates"],cleaningDoneVisibility:"everyone"};
 
 /* ── Theme system catalog ── */
 const FONTS={
@@ -337,32 +337,41 @@ function CleaningCard({cfg,user,users,roster,completions,toast}){
   const msLeft=Math.max(0,sunEnd-now);
   const daysLeft=Math.ceil(msLeft/86400000);
   const c=cfg.primaryColor;
+  /* Visibility setting (set by admin): controls who sees ✓ status on the roster.
+     - "everyone": all 5 see everyone's done state (default)
+     - "self":     each user sees only their own ✓; others' rows blank
+     - "admin":    users see no ✓ marks at all (not even own); admin-only visibility */
+  const vis=cfg.cleaningDoneVisibility||"everyone";
+  const showOwnDone=vis!=="admin";
   const togDone=async()=>{try{await DB.markCleaningDone(mon,user.id,!myDone);toast(myDone?"Marked undone":"Marked done — thanks!",myDone?"info":"success")}catch{toast("Could not save","error")}};
   return<div className="nm" style={{padding:18,marginBottom:14}}>
     <div className="sb" style={{marginBottom:12,alignItems:"baseline"}}>
       <div className="sec" style={{marginBottom:0}}><span className="sec-ico">🧹</span>Cleaning week</div>
       <div style={{fontSize:10,color:"#555b6e",fontWeight:600}}>{fmtDateShort(mon)} → {fmtDateShort(weekSundayEnd(now)-1)}</div>
     </div>
-    {/* Hero: your task */}
-    <div className="nm-in" style={{padding:"14px 16px",marginBottom:12,border:`1px solid ${myDone?"#4ade8033":c+"33"}`,background:myDone?"#4ade8011":undefined}}>
+    {/* Hero: your task. In "admin"-visibility mode the done state isn't shown to the user
+        but the Mark button still works (admin can see status on their tab). */}
+    <div className="nm-in" style={{padding:"14px 16px",marginBottom:12,border:`1px solid ${myDone&&showOwnDone?"#4ade8033":c+"33"}`,background:myDone&&showOwnDone?"#4ade8011":undefined}}>
       <div style={{fontSize:10,color:"#555b6e",fontWeight:800,letterSpacing:1}}>YOUR TASK THIS WEEK</div>
-      <div style={{fontSize:22,fontWeight:900,color:myDone?"#4ade80":"#e2e6ef",marginTop:4,letterSpacing:-.3,textDecoration:myDone?"line-through":"none",textDecorationColor:"#4ade8088",textDecorationThickness:2}}>{myTask}</div>
-      <div style={{fontSize:10,color:"#8890a4",marginTop:5}}>{myDone?"✓ Done — well played":(daysLeft>0?`${daysLeft} day${daysLeft===1?"":"s"} left · due Sunday midnight`:"Due TODAY by midnight!")}</div>
-      <button onClick={togDone} className="nb" style={{marginTop:10,width:"100%",padding:"10px 0",fontSize:12,fontWeight:800,color:myDone?"#8890a4":"#4ade80",border:`1px solid ${myDone?"#8890a444":"#4ade8055"}`}}>{myDone?"↩ Mark as not done":"✓ Mark as done"}</button>
+      <div style={{fontSize:22,fontWeight:900,color:myDone&&showOwnDone?"#4ade80":"#e2e6ef",marginTop:4,letterSpacing:-.3,textDecoration:myDone&&showOwnDone?"line-through":"none",textDecorationColor:"#4ade8088",textDecorationThickness:2}}>{myTask}</div>
+      <div style={{fontSize:10,color:"#8890a4",marginTop:5}}>{!showOwnDone?(daysLeft>0?`${daysLeft} day${daysLeft===1?"":"s"} left · due Sunday midnight`:"Due TODAY by midnight!"):(myDone?"✓ Done — well played":(daysLeft>0?`${daysLeft} day${daysLeft===1?"":"s"} left · due Sunday midnight`:"Due TODAY by midnight!"))}</div>
+      <button onClick={togDone} className="nb" style={{marginTop:10,width:"100%",padding:"10px 0",fontSize:12,fontWeight:800,color:myDone&&showOwnDone?"#8890a4":"#4ade80",border:`1px solid ${myDone&&showOwnDone?"#8890a444":"#4ade8055"}`}}>{showOwnDone?(myDone?"↩ Mark as not done":"✓ Mark as done"):"✓ Mark as done"}</button>
     </div>
-    {/* Roster — everyone's task this week */}
+    {/* Roster — everyone's task this week. ✓ shown depending on visibility setting. */}
     <div style={{fontSize:10,color:"#555b6e",fontWeight:800,letterSpacing:1,marginBottom:6}}>EVERYONE THIS WEEK</div>
-    {pids.slice(0,total).map((pid,slot)=>{const u=users.find(x=>x.id===pid);const tIdx=assignedTaskIdx(slot,wk,total);const t=tasks[tIdx]||`Task ${tIdx+1}`;const done=!!weekComp[pid];const isMe=pid===user.id;return<div key={pid||slot} className="sb" style={{padding:"7px 2px",borderTop:slot>0?`1px solid ${ls}`:"none"}}>
+    {pids.slice(0,total).map((pid,slot)=>{const u=users.find(x=>x.id===pid);const tIdx=assignedTaskIdx(slot,wk,total);const t=tasks[tIdx]||`Task ${tIdx+1}`;const done=!!weekComp[pid];const isMe=pid===user.id;
+    const showThisDone=vis==="everyone"||(vis==="self"&&isMe);
+    return<div key={pid||slot} className="sb" style={{padding:"7px 2px",borderTop:slot>0?`1px solid ${ls}`:"none"}}>
       <div className="row" style={{gap:8,flex:1,minWidth:0}}>
         <span style={{fontSize:14}}>{u?.emoji||"😊"}</span>
         <div style={{minWidth:0}}>
           <div style={{fontSize:12,fontWeight:700,color:"#e2e6ef"}}>{u?.name||"(removed user)"}{isMe&&<span style={{color:c,fontSize:9,marginLeft:4}}>you</span>}</div>
-          <div style={{fontSize:10,color:done?"#4ade80":"#8890a4",textDecoration:done?"line-through":"none"}}>{t}</div>
+          <div style={{fontSize:10,color:done&&showThisDone?"#4ade80":"#8890a4",textDecoration:done&&showThisDone?"line-through":"none"}}>{t}</div>
         </div>
       </div>
-      <div className="np" style={{fontSize:9,color:done?"#4ade80":"#555b6e",background:bg}}>{done?"✓":"…"}</div>
+      {showThisDone?<div className="np" style={{fontSize:9,color:done?"#4ade80":"#555b6e",background:bg}}>{done?"✓":"…"}</div>:<div style={{fontSize:9,color:"#555b6e",opacity:.4}}>—</div>}
     </div>})}
-    <div style={{fontSize:9,color:"#555b6e",fontStyle:"italic",marginTop:10,textAlign:"center",lineHeight:1.5}}>Tasks rotate every Monday — you'll get a different one each week</div>
+    <div style={{fontSize:9,color:"#555b6e",fontStyle:"italic",marginTop:10,textAlign:"center",lineHeight:1.5}}>Tasks rotate every Monday — you'll get a different one each week{vis==="admin"&&<><br/>Completion status is visible only to admin</>}{vis==="self"&&<><br/>Only you can see your own completion status</>}</div>
   </div>;
 }
 
@@ -533,14 +542,16 @@ if(visibleSch.length===0)return null;
 const myPastCount=visibleSch.filter(s=>isSchedulePast(s)&&s.userId===user.id).length;
 return<div className="nm" style={{marginBottom:16,padding:22}}><div className="sec"><span className="sec-ico">🗓️</span>Reservations <span style={{fontSize:11,color:"#8890a4",fontWeight:700,marginLeft:"auto"}}>{visibleSch.length}</span></div>{visibleSch.map(s=>{const past=isSchedulePast(s);const endT=s.endTime||(()=>{const[h,m]=(s.startTime||s.dateTime?.split("T")[1]||"00:00").split(":").map(Number);const e=new Date(2000,0,1,h,m+(s.minutes||45));return e.toTimeString().slice(0,5)})();return<div key={s.id} className="sb" style={{padding:"10px 0",borderBottom:`1px solid ${ls}`,opacity:past?.55:1}}><div className="row"><span style={{fontSize:13}}>{s.userEmoji||"😊"}</span><div><div style={{fontSize:12,fontWeight:700,color:"#e2e6ef"}}>{s.userName}{s.userId===user.id&&<span style={{color:cfg.primaryColor,fontSize:9}}> you</span>}{past&&<span style={{color:"#8890a4",fontSize:9,marginLeft:4,fontWeight:600}}>· past</span>}</div><div style={{fontSize:10,color:"#555b6e"}}>{s.cycleName} · {new Date(s.dateTime).toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"})}</div><div className="M" style={{fontSize:11,color:"#8890a4"}}>{s.startTime||s.dateTime?.split("T")[1]||"?"} → {endT}</div></div></div>{s.userId===user.id&&!past&&<button onClick={()=>sES(s)} className="nb" style={{fontSize:9,padding:"3px 8px",color:cfg.primaryColor}}>Edit</button>}</div>})}{myPastCount>0&&<div style={{fontSize:9,color:"#555b6e",textAlign:"center",marginTop:8,fontStyle:"italic"}}>Your past reservations are private — only you see them</div>}</div>})()}
 
-{/* My washes */}
-{(()=>{const mine=hist.filter(h=>h.userId===user.id);if(!mine.length)return null;const monthStart=new Date();monthStart.setDate(1);monthStart.setHours(0,0,0,0);const thisMonth=mine.filter(h=>h.finishedAt>=monthStart.getTime()).length;const totalMin=mine.reduce((a,h)=>a+Math.round(h.durationMs/60000),0);const totalWater=mine.reduce((a,h)=>a+(h.waterLiters||0),0);const totalEnergy=mine.reduce((a,h)=>a+(h.energyKwh||0),0);return<div className="nm" style={{marginBottom:16,padding:22}}><div className="sec"><span className="sec-ico">✨</span>My washes</div><div className="g3" style={{marginBottom:(totalWater||totalEnergy)?8:12,gap:8}}><div className="nm-in" style={{padding:"13px 8px",textAlign:"center"}}><div style={{fontSize:12,color:"#555b6e",marginBottom:4,fontWeight:700}}>🏆 Total</div><div style={{fontSize:22,fontWeight:900,color:"#e2e6ef"}}>{mine.length}</div></div><div className="nm-in" style={{padding:"13px 8px",textAlign:"center"}}><div style={{fontSize:12,color:"#555b6e",marginBottom:4,fontWeight:700}}>📆 Month</div><div style={{fontSize:22,fontWeight:900,color:cfg.primaryColor}}>{thisMonth}</div></div><div className="nm-in" style={{padding:"13px 8px",textAlign:"center"}}><div style={{fontSize:12,color:"#555b6e",marginBottom:4,fontWeight:700}}>⏱ Time</div><div style={{fontSize:22,fontWeight:900,color:"#e2e6ef"}}>{Math.floor(totalMin/60)}h</div></div></div>{(totalWater||totalEnergy)?<div className="g2" style={{marginBottom:12,gap:8}}><div className="nm-in" style={{padding:"13px 10px",textAlign:"center"}}><div style={{fontSize:12,color:"#555b6e",marginBottom:4,fontWeight:700}}>💧 Water</div><div style={{fontSize:19,fontWeight:900,color:"#60a5fa"}}>{totalWater.toFixed(0)} <span style={{fontSize:12,color:"#555b6e",fontWeight:600}}>L</span></div></div><div className="nm-in" style={{padding:"13px 10px",textAlign:"center"}}><div style={{fontSize:12,color:"#555b6e",marginBottom:4,fontWeight:700}}>⚡ Energy</div><div style={{fontSize:19,fontWeight:900,color:"#fbbf24"}}>{totalEnergy.toFixed(2)} <span style={{fontSize:12,color:"#555b6e",fontWeight:600}}>kWh</span></div></div></div>:null}{mine.slice(0,5).map(h=><div key={h.id} className="sb" style={{padding:"11px 0",borderTop:`1px solid ${ls}`}}><div style={{flex:1,minWidth:0}}><div style={{fontSize:14,fontWeight:700,color:"#e2e6ef"}}>{h.cycleName}</div><div style={{fontSize:12,color:"#555b6e",marginTop:3}}>{fmtDT(h.finishedAt,cfg.time24!==false)}{(h.waterLiters||h.energyKwh)&&` · ${h.waterLiters?h.waterLiters.toFixed(1)+"L":""}${h.waterLiters&&h.energyKwh?" · ":""}${h.energyKwh?h.energyKwh.toFixed(2)+"kWh":""}`}</div></div><span className="M" style={{fontSize:13,color:"#8890a4",whiteSpace:"nowrap",fontWeight:700}}>{Math.round(h.durationMs/60000)}m</span></div>)}</div>})()}
+{/* Sections — order configurable by admin via cfg.dashboardOrder.
+    Default: cleaning → washes → housemates. */}
+{(()=>{
+const sections={};
 
-{/* Cleaning roster — only renders for the 5 participating users */}
-<CleaningCard cfg={cfg} user={user} users={users} roster={roster} completions={completions} toast={toast}/>
+sections.cleaning=<CleaningCard cfg={cfg} user={user} users={users} roster={roster} completions={completions} toast={toast}/>;
 
-{/* Housemates — click to chat */}
-<div className="nm" style={{padding:22}}><div className="sec"><span className="sec-ico">🏠</span>Housemates</div>
+sections.washes=(()=>{const mine=hist.filter(h=>h.userId===user.id);if(!mine.length)return null;const monthStart=new Date();monthStart.setDate(1);monthStart.setHours(0,0,0,0);const thisMonth=mine.filter(h=>h.finishedAt>=monthStart.getTime()).length;const totalMin=mine.reduce((a,h)=>a+Math.round(h.durationMs/60000),0);const totalWater=mine.reduce((a,h)=>a+(h.waterLiters||0),0);const totalEnergy=mine.reduce((a,h)=>a+(h.energyKwh||0),0);return<div className="nm" style={{marginBottom:16,padding:22}}><div className="sec"><span className="sec-ico">✨</span>My washes</div><div className="g3" style={{marginBottom:(totalWater||totalEnergy)?8:12,gap:8}}><div className="nm-in" style={{padding:"13px 8px",textAlign:"center"}}><div style={{fontSize:12,color:"#555b6e",marginBottom:4,fontWeight:700}}>🏆 Total</div><div style={{fontSize:22,fontWeight:900,color:"#e2e6ef"}}>{mine.length}</div></div><div className="nm-in" style={{padding:"13px 8px",textAlign:"center"}}><div style={{fontSize:12,color:"#555b6e",marginBottom:4,fontWeight:700}}>📆 Month</div><div style={{fontSize:22,fontWeight:900,color:cfg.primaryColor}}>{thisMonth}</div></div><div className="nm-in" style={{padding:"13px 8px",textAlign:"center"}}><div style={{fontSize:12,color:"#555b6e",marginBottom:4,fontWeight:700}}>⏱ Time</div><div style={{fontSize:22,fontWeight:900,color:"#e2e6ef"}}>{Math.floor(totalMin/60)}h</div></div></div>{(totalWater||totalEnergy)?<div className="g2" style={{marginBottom:12,gap:8}}><div className="nm-in" style={{padding:"13px 10px",textAlign:"center"}}><div style={{fontSize:12,color:"#555b6e",marginBottom:4,fontWeight:700}}>💧 Water</div><div style={{fontSize:19,fontWeight:900,color:"#60a5fa"}}>{totalWater.toFixed(0)} <span style={{fontSize:12,color:"#555b6e",fontWeight:600}}>L</span></div></div><div className="nm-in" style={{padding:"13px 10px",textAlign:"center"}}><div style={{fontSize:12,color:"#555b6e",marginBottom:4,fontWeight:700}}>⚡ Energy</div><div style={{fontSize:19,fontWeight:900,color:"#fbbf24"}}>{totalEnergy.toFixed(2)} <span style={{fontSize:12,color:"#555b6e",fontWeight:600}}>kWh</span></div></div></div>:null}{mine.slice(0,5).map(h=><div key={h.id} className="sb" style={{padding:"11px 0",borderTop:`1px solid ${ls}`}}><div style={{flex:1,minWidth:0}}><div style={{fontSize:14,fontWeight:700,color:"#e2e6ef"}}>{h.cycleName}</div><div style={{fontSize:12,color:"#555b6e",marginTop:3}}>{fmtDT(h.finishedAt,cfg.time24!==false)}{(h.waterLiters||h.energyKwh)&&` · ${h.waterLiters?h.waterLiters.toFixed(1)+"L":""}${h.waterLiters&&h.energyKwh?" · ":""}${h.energyKwh?h.energyKwh.toFixed(2)+"kWh":""}`}</div></div><span className="M" style={{fontSize:13,color:"#8890a4",whiteSpace:"nowrap",fontWeight:700}}>{Math.round(h.durationMs/60000)}m</span></div>)}</div>})();
+
+sections.housemates=<div className="nm" style={{padding:22,marginBottom:16}}><div className="sec"><span className="sec-ico">🏠</span>Housemates</div>
 {/* If a wash is running but we can't attribute it to any user (started directly on the
     machine), show a banner so housemates know SOMEONE/something is washing. */}
 {(()=>{const realRunning=mac?.running&&!hsSaysDone;const attributable=realRunning&&users.some(x=>!x.disabled&&(mac?.userId===x.id||mac?.userName===x.name||mac?.lastUser===x.name||mac?.lastUserId===x.id));if(realRunning&&!attributable)return<div className="nm-in" style={{padding:"12px 14px",marginBottom:10,border:`1px solid ${cfg.primaryColor}33`}}><div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}><span style={{fontSize:18,animation:"spin 3s linear infinite",display:"inline-block"}}>🌀</span><div style={{flex:1}}><div style={{fontSize:12,fontWeight:800,color:cfg.primaryColor}}>Machine in use</div><div style={{fontSize:10,color:"#8890a4"}}>Started directly on the machine{useHs&&typeof hs.remainingMin==="number"?` · ${hs.remainingMin}m left`:""}</div></div></div><button onClick={async()=>{if(!confirm(`Claim this wash? Your name (${user.name}) will be attached to it.`))return;try{await DB.setMachine({...mac,userId:user.id,userName:user.name,emoji:user.emoji||"😊",claimedAt:Date.now()});toast("Wash claimed — it's yours now","success")}catch{toast("Failed to claim","error")}}} className="nb nb-p" style={{width:"100%",padding:"10px 0",fontSize:12,fontWeight:800,background:cfg.primaryColor,letterSpacing:.3}}>🙋 It's my wash — claim it</button><div style={{fontSize:9,color:"#555b6e",textAlign:"center",marginTop:6,fontStyle:"italic"}}>Whoever pressed Start should tap this</div></div>})()}
@@ -558,20 +569,26 @@ return<button key={u.id} onClick={()=>{if(cfg.chatEnabled!==false)openChat(u.id)
 <div className="av" style={{width:28,height:28,fontSize:13,background:washing?`${cfg.primaryColor}33`:bg}}>{u.emoji||"😊"}</div>
 <div style={{flex:1}}><div style={{fontSize:11,fontWeight:700,color:"#e2e6ef"}}>{u.name}</div><div style={{fontSize:9,color}}>{status}</div></div>
 {cfg.chatEnabled!==false&&<span style={{fontSize:10,color:"#555b6e"}}>💬</span>}
-</button>})}</div></div>
+</button>})}</div></div>;
+/* Render sections in the admin-configured order. Falls back to default if missing. */
+const order=Array.isArray(cfg.dashboardOrder)&&cfg.dashboardOrder.length?cfg.dashboardOrder:["cleaning","washes","housemates"];
+const seen=new Set();
+const ordered=[...order.filter(k=>{if(seen.has(k))return false;seen.add(k);return sections[k]!==undefined}),...Object.keys(sections).filter(k=>!seen.has(k))];
+return<>{ordered.map(k=><Fragment key={k}>{sections[k]}</Fragment>)}</>;
+})()}
 </div></div>;}
 
 /* ═══ ADMIN ═══ */
 function AdminDash({cfg,setCfg,onOut,toast}){
 const[users,sU]=useState([]);const[mac,sM]=useState({running:false});const[sch,sSch]=useState([]);const[esp,sE]=useState(null);const[hist,sH]=useState([]);const[msgs,sMs]=useState([]);const[nn,sNN]=useState("");const[np,sNP]=useState("");const[tab,sT]=useState("dash");
-const[cP,sCP]=useState(cfg.primaryColor);const[cA,sCA]=useState(cfg.accentColor);const[aN,sAN]=useState(cfg.appName);const[aM,sAM]=useState(cfg.alertMinutesBefore||5);const[chatEn,sChatEn]=useState(cfg.chatEnabled!==false);const[apEm,sApEm]=useState(cfg.appEmoji||"🫧");const[mntn,sMntn]=useState(!!cfg.maintenance);const[adPw,sAdPw]=useState("");const[tagln,sTagln]=useState(cfg.tagline||"Smart laundry control");const[redMo,sRedMo]=useState(!!cfg.reduceMotion);const[defEm,sDefEm]=useState(cfg.defaultUserEmoji||"😊");const[cStop,sCStop]=useState(cfg.confirmStop!==false);const[aLog,sALog]=useState(cfg.autoLogoutMin||0);const[t24,sT24]=useState(cfg.time24!==false);const[sFin,sSFin]=useState(cfg.soundOnFinish!==false);const[grace,sGrace]=useState(cfg.gracePoweroffMin||5);const[defWash,sDefWash]=useState(cfg.defaultWashMinutes||90);const[tMode,sTMode]=useState(cfg.themeMode||"neumo");const[fnt,sFnt]=useState(cfg.fontFamily||"Nunito");const[dens,sDens]=useState(cfg.density||"comfy");const[rad,sRad]=useState(cfg.radius||"soft");const[userQ,sUserQ]=useState("");const[histQ,sHistQ]=useState("");const[manMin,sManMin]=useState(5);
+const[cP,sCP]=useState(cfg.primaryColor);const[cA,sCA]=useState(cfg.accentColor);const[aN,sAN]=useState(cfg.appName);const[aM,sAM]=useState(cfg.alertMinutesBefore||5);const[chatEn,sChatEn]=useState(cfg.chatEnabled!==false);const[apEm,sApEm]=useState(cfg.appEmoji||"🫧");const[mntn,sMntn]=useState(!!cfg.maintenance);const[adPw,sAdPw]=useState("");const[tagln,sTagln]=useState(cfg.tagline||"Smart laundry control");const[redMo,sRedMo]=useState(!!cfg.reduceMotion);const[defEm,sDefEm]=useState(cfg.defaultUserEmoji||"😊");const[cStop,sCStop]=useState(cfg.confirmStop!==false);const[aLog,sALog]=useState(cfg.autoLogoutMin||0);const[t24,sT24]=useState(cfg.time24!==false);const[sFin,sSFin]=useState(cfg.soundOnFinish!==false);const[grace,sGrace]=useState(cfg.gracePoweroffMin||5);const[defWash,sDefWash]=useState(cfg.defaultWashMinutes||90);const[tMode,sTMode]=useState(cfg.themeMode||"neumo");const[fnt,sFnt]=useState(cfg.fontFamily||"Nunito");const[dens,sDens]=useState(cfg.density||"comfy");const[rad,sRad]=useState(cfg.radius||"soft");const[dashOrd,sDashOrd]=useState(Array.isArray(cfg.dashboardOrder)?cfg.dashboardOrder:["cleaning","washes","housemates"]);const[clnVis,sClnVis]=useState(cfg.cleaningDoneVisibility||"everyone");const[userQ,sUserQ]=useState("");const[histQ,sHistQ]=useState("");const[manMin,sManMin]=useState(5);
 const[eu,sEU]=useState(null);const[sfu,sSFU]=useState(false);const[showChat,sC]=useState(false);const[editSch,sES]=useState(null);const[now,sN]=useState(Date.now());const[adLR,sAdLR]=useState(()=>{try{return+(localStorage.getItem("lh_admin_last_read")||0)}catch{return 0}});const[hs,sHs]=useState(null);const[spinStyle,sSpinStyle]=useState(cfg.spinnerStyle||"drop");
 
 const[roster,sRoster]=useState(null);const[completions,sComp]=useState({});
 useEffect(()=>{const a=DB.onUsersChange(sU);const b=DB.onMachineChange(sM);const c=DB.onScheduleChange(sSch);const d=DB.onEsp32Status(sE);const e=DB.onHistoryChange(sH);const f=DB.onChatMessages(sMs);const g=DB.onHisense(sHs);const h=DB.onCleaning(sRoster);const i=DB.onCleaningCompletions(sComp);const iv=setInterval(()=>sN(Date.now()),1000);return()=>{a();b();c();d();e();f();g();h();i();clearInterval(iv)}},[]);
 
 const addU=async()=>{if(!nn.trim()||!np.trim())return toast("Required","error");if(np.length<4)return toast("PIN 4+","error");if(users.find(u=>u.name.toLowerCase()===nn.trim().toLowerCase()))return toast("Exists","error");await DB.addUser({id:Date.now().toString(),name:nn.trim(),pin:np.trim(),emoji:cfg.defaultUserEmoji||"😊",dnd:false,disabled:false});sNN("");sNP("");toast(`${nn.trim()} added`,"success")};
-const saveCfg=async()=>{const u={...cfg,primaryColor:cP,accentColor:cA,appName:aN,appEmoji:(apEm||"🫧").trim()||"🫧",alertMinutesBefore:+aM||5,chatEnabled:chatEn,maintenance:mntn,tagline:tagln.trim()||"Smart laundry control",reduceMotion:redMo,defaultUserEmoji:(defEm||"😊").trim()||"😊",confirmStop:cStop,autoLogoutMin:Math.max(0,+aLog||0),time24:t24,soundOnFinish:sFin,spinnerStyle:spinStyle||"drum",gracePoweroffMin:Math.max(1,Math.min(30,+grace||5)),defaultWashMinutes:Math.max(15,Math.min(240,+defWash||90)),themeMode:tMode||"neumo",fontFamily:fnt||"Nunito",density:dens||"comfy",radius:rad||"soft"};/* Clean up vestigial config keys from old versions */delete u.washCycles;delete u.maxWashMinutes;delete u.minWashMinutes;delete u.esp32Ip;if(adPw.trim())u.adminPassword=adPw.trim();await DB.setConfig(u);setCfg(u);sAdPw("");toast("Saved","success")};
+const saveCfg=async()=>{const u={...cfg,primaryColor:cP,accentColor:cA,appName:aN,appEmoji:(apEm||"🫧").trim()||"🫧",alertMinutesBefore:+aM||5,chatEnabled:chatEn,maintenance:mntn,tagline:tagln.trim()||"Smart laundry control",reduceMotion:redMo,defaultUserEmoji:(defEm||"😊").trim()||"😊",confirmStop:cStop,autoLogoutMin:Math.max(0,+aLog||0),time24:t24,soundOnFinish:sFin,spinnerStyle:spinStyle||"drum",gracePoweroffMin:Math.max(1,Math.min(30,+grace||5)),defaultWashMinutes:Math.max(15,Math.min(240,+defWash||90)),themeMode:tMode||"neumo",fontFamily:fnt||"Nunito",density:dens||"comfy",radius:rad||"soft",dashboardOrder:dashOrd&&dashOrd.length?dashOrd:["cleaning","washes","housemates"],cleaningDoneVisibility:clnVis||"everyone"};/* Clean up vestigial config keys from old versions */delete u.washCycles;delete u.maxWashMinutes;delete u.minWashMinutes;delete u.esp32Ip;if(adPw.trim())u.adminPassword=adPw.trim();await DB.setConfig(u);setCfg(u);sAdPw("");toast("Saved","success")};
 const applyTheme=(t)=>{sCP(t.p);sCA(t.a);toast(`${t.n} theme — click Save to apply`,"info")};
 const forceStop=(msg="Stopped",type="warning")=>{if(cfg.confirmStop!==false&&!confirm("Force-stop the running machine?"))return;DB.setMachine({running:false});toast(msg,type)};
 const resetUserPin=async(u)=>{const p=prompt(`Set new PIN for ${u.name} (4+ digits):`);if(!p)return;if(p.length<4)return toast("PIN must be 4+ digits","error");await DB.updateUser(u.id,{pin:p});toast(`PIN reset for ${u.name}`,"success")};
@@ -795,6 +812,27 @@ return<div className="nm"><div className="sec"><span className="sec-ico">⚙️<
 <div><label style={{fontSize:11,color:"#555b6e",marginBottom:4,display:"block"}}>Reminder (min before end) <span style={{color:"#8890a4"}}>push notification</span></label><input type="number" value={aM} onChange={e=>sAM(e.target.value)} className="ni" min="1" max="15"/></div>
 <TR t="Confirm before force-stop" d="Ask before stopping a running wash" on={cStop} onChange={()=>sCStop(!cStop)}/>
 <TR t="Beep when wash finishes" d="Play a tone when machine frees" on={sFin} onChange={()=>sSFin(!sFin)}/>
+</SH>
+
+<SH i="🗂" t="USER DASHBOARD LAYOUT">
+{(()=>{
+const LABELS={cleaning:{i:"🧹",l:"Cleaning week"},washes:{i:"✨",l:"My washes"},housemates:{i:"🏠",l:"Housemates"}};
+const move=(idx,dir)=>{const o=[...dashOrd];const ni=idx+dir;if(ni<0||ni>=o.length)return;[o[idx],o[ni]]=[o[ni],o[idx]];sDashOrd(o)};
+return<><div style={{fontSize:11,color:"#8890a4",marginBottom:8,lineHeight:1.5}}>Drag-style ordering (use the arrows). Determines the order these cards appear on each user's dashboard.</div>
+{dashOrd.map((k,i)=>{const L=LABELS[k]||{i:"❔",l:k};return<div key={k} className="nm-in" style={{padding:"10px 12px",marginBottom:6,display:"flex",alignItems:"center",gap:10}}>
+  <span className="M" style={{fontSize:10,color:"#555b6e",width:14,textAlign:"right"}}>{i+1}</span>
+  <span style={{fontSize:16}}>{L.i}</span>
+  <div style={{flex:1,fontSize:12,fontWeight:700,color:"#e2e6ef"}}>{L.l}</div>
+  <button onClick={()=>move(i,-1)} disabled={i===0} className="nb" style={{padding:"4px 10px",fontSize:11,opacity:i===0?.3:1,cursor:i===0?"not-allowed":"pointer"}}>↑</button>
+  <button onClick={()=>move(i,1)} disabled={i===dashOrd.length-1} className="nb" style={{padding:"4px 10px",fontSize:11,opacity:i===dashOrd.length-1?.3:1,cursor:i===dashOrd.length-1?"not-allowed":"pointer"}}>↓</button>
+</div>})}
+<div style={{fontSize:10,color:"#555b6e",marginTop:8,fontStyle:"italic"}}>Tip: Cleaning week only shows for the 5 chosen participants — others see washes + housemates only.</div>
+</>})()}
+
+<div style={{marginTop:12}}><label style={{fontSize:11,color:"#555b6e",marginBottom:6,display:"block"}}>Cleaning ✓ status visible to</label>
+<div className="wrap">{[{k:"everyone",l:"👥 Everyone"},{k:"self",l:"🙋 Yourself only"},{k:"admin",l:"🛡 Admin only"}].map(o=><button key={o.k} onClick={()=>sClnVis(o.k)} className="nb" style={{fontSize:11,padding:"7px 12px",color:clnVis===o.k?cfg.primaryColor:"#c8cdd8",fontWeight:clnVis===o.k?800:600,flex:1}}>{o.l}</button>)}</div>
+<div style={{fontSize:10,color:"#555b6e",marginTop:6,fontStyle:"italic",lineHeight:1.5}}>{clnVis==="everyone"?"All 5 participants see who has marked their task done.":clnVis==="self"?"Each user only sees their own ✓; nobody can see if others have done their task.":"Users see no ✓ marks at all. Only you (admin) can track completion via the Cleaning tab."}</div>
+</div>
 </SH>
 
 <SH i="💬" t="FEATURES">
