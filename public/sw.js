@@ -1,4 +1,4 @@
-const VERSION = "v18-cleaning-and-past-schedules-private";
+const VERSION = "v19-cleaning-rules-fix";
 const STATIC_CACHE = `laundryhub-static-${VERSION}`;
 const RUNTIME_CACHE = `laundryhub-runtime-${VERSION}`;
 

@@ -7,12 +7,13 @@
     "config":        { ".read": "auth != null", ".write": "auth != null" },
     "chat":          { ".read": "auth != null", ".write": "auth != null", ".indexOn": ["timestamp"] },
     "history":       { ".read": "auth != null", ".write": "auth != null" },
+    "cleaning":      { ".read": "auth != null", ".write": "auth != null" },
 
     "machine":       { ".read": true,           ".write": true },
     "esp32_status":  { ".read": true,           ".write": true },
     "esp32_command": { ".read": true,           ".write": "auth != null" },
 
-    "hisense":       { ".read": "auth != null", ".write": false },
+    "hisense":       { ".read": "auth != null", ".write": "auth != null" },
     "notifications": { ".read": "auth != null", ".write": false, ".indexOn": ["ts"] },
     "relay_state":   { ".read": true,           ".write": true },
     "relay_command": { ".read": true,           ".write": "auth != null" },

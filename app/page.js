@@ -661,7 +661,7 @@ const baseMon=roster?.baseMonday||weekMonday(Date.now());
 const mon=weekMonday(Date.now());const wk=weekIndex(mon,baseMon);
 const total=Math.min(5,tasks.filter(t=>t).length,pids.filter(p=>p).length);
 const enabledUsers=users.filter(u=>!u.disabled);
-const save=async(patch)=>{const next={enabled,participantIds:pids.slice(0,5),tasks:tasks.slice(0,5),baseMonday:baseMon,...patch};while(next.participantIds.length<5)next.participantIds.push("");while(next.tasks.length<5)next.tasks.push("");try{await DB.setCleaning(next);toast("Saved","success")}catch{toast("Save failed","error")}};
+const save=async(patch)=>{const next={enabled,participantIds:pids.slice(0,5),tasks:tasks.slice(0,5),baseMonday:baseMon,...patch};while(next.participantIds.length<5)next.participantIds.push("");while(next.tasks.length<5)next.tasks.push("");try{await DB.setCleaning(next);toast("Saved","success")}catch(e){console.error("[cleaning] save failed:",e);toast(`Save failed: ${e?.code||e?.message||"unknown"}`,"error")}};
 const setSlot=(slot,uid)=>{const p=[...pids];while(p.length<5)p.push("");p[slot]=uid;save({participantIds:p})};
 const setTask=(slot,name)=>{const t=[...tasks];while(t.length<5)t.push("");t[slot]=name;save({tasks:t})};
 const resetRotation=async()=>{if(!confirm("Reset rotation so this Monday becomes the new starting point?\n\nEveryone's task numbers will shift back to their slot order."))return;await save({baseMonday:weekMonday(Date.now())})};
