@@ -1,4 +1,4 @@
-const VERSION = "v20-dashboard-order-cleaning-vis";
+const VERSION = "v21-ready-schedule-reorderable";
 const STATIC_CACHE = `laundryhub-static-${VERSION}`;
 const RUNTIME_CACHE = `laundryhub-runtime-${VERSION}`;
 

@@ -2,7 +2,7 @@
 import{useState,useEffect,useCallback,useRef,Fragment}from"react";
 import DB from"./firebase";
 
-const DEF={primaryColor:"#6C9BCF",accentColor:"#E8A87C",appName:"LaundryHub",appEmoji:"🫧",tagline:"Smart laundry control",alertMinutesBefore:5,chatEnabled:true,maintenance:false,reduceMotion:false,defaultUserEmoji:"😊",confirmStop:true,autoLogoutMin:0,time24:true,soundOnFinish:true,gracePoweroffMin:5,defaultWashMinutes:90,spinnerStyle:"drum",themeMode:"neumo",fontFamily:"Nunito",density:"comfy",radius:"soft",dashboardOrder:["cleaning","washes","housemates"],cleaningDoneVisibility:"everyone"};
+const DEF={primaryColor:"#6C9BCF",accentColor:"#E8A87C",appName:"LaundryHub",appEmoji:"🫧",tagline:"Smart laundry control",alertMinutesBefore:5,chatEnabled:true,maintenance:false,reduceMotion:false,defaultUserEmoji:"😊",confirmStop:true,autoLogoutMin:0,time24:true,soundOnFinish:true,gracePoweroffMin:5,defaultWashMinutes:90,spinnerStyle:"drum",themeMode:"neumo",fontFamily:"Nunito",density:"comfy",radius:"soft",dashboardOrder:["ready","schedule","cleaning","washes","housemates"],cleaningDoneVisibility:"everyone"};
 
 /* ── Theme system catalog ── */
 const FONTS={
@@ -64,6 +64,14 @@ function rssiInfo(r){
 }
 function fmtDT(ms,t24){const d=new Date(ms);return d.toLocaleString(undefined,{hour12:!t24,year:"numeric",month:"short",day:"2-digit",hour:"2-digit",minute:"2-digit"})}
 function fmtT(ms,t24){return new Date(ms).toLocaleTimeString(undefined,{hour12:!t24,hour:"2-digit",minute:"2-digit"})}
+/* Canonical default for dashboard section order. Used as the merge target so users
+   migrating from an older config don't lose new sections (ready, schedule). */
+const SECTION_DEFAULT_ORDER=["ready","schedule","cleaning","washes","housemates"];
+function mergeDashOrder(saved){
+  const arr=Array.isArray(saved)?[...saved.filter(k=>SECTION_DEFAULT_ORDER.includes(k))]:[];
+  SECTION_DEFAULT_ORDER.forEach((k,i)=>{if(!arr.includes(k))arr.splice(Math.min(i,arr.length),0,k)});
+  return arr;
+}
 /* True end-time of a schedule entry, supporting both new-style (endTime) and old-style (minutes). */
 function scheduleEndMs(s){
   if(!s)return 0;
@@ -523,29 +531,24 @@ return<div style={{minHeight:"100vh",background:bg}}>
 {mac?.running&&!(useHs&&(hs.running||hs.paused))&&(()=>{const age=(Number(mac.startTime)||0)>0?(Date.now()-Number(mac.startTime)):0;const wait=age<10000;return<button disabled={wait} onClick={async()=>{if(!confirm("Turn off the machine? This cuts power to the wash."))return;await DB.setMachine({running:false,lastUser:mac?.userName||user.name,lastCycle:mac?.cycleName||"",finishedAt:Date.now()});toast("Powered off","info")}} className="nb" style={{marginTop:14,padding:"12px 0",width:"100%",color:wait?"#555b6e":"#fbbf24",fontSize:14,fontWeight:800,letterSpacing:.5,border:`1px solid ${wait?"#555b6e44":"#fbbf2444"}`,cursor:wait?"not-allowed":"pointer",opacity:wait?.6:1}}>{wait?`🔌 Turn OFF (${Math.ceil((10000-age)/1000)}s…)`:"🔌 Turn OFF"}</button>})()}
 </div>
 
-{/* Start */}
-{!(mac?.running||useHs)&&<div className="nm" style={{marginBottom:16,padding:22,opacity:on&&!blocked?1:.5,transition:"opacity .2s"}}>
+{/* Sections — order configurable by admin via cfg.dashboardOrder.
+    All 5 sections (ready/schedule/cleaning/washes/housemates) are reorderable. */}
+{(()=>{
+const sections={};
+
+/* Ready to wash — only renders when machine is idle */
+sections.ready=!(mac?.running||useHs)?<div className="nm" style={{marginBottom:16,padding:22,opacity:on&&!blocked?1:.5,transition:"opacity .2s"}}>
 <div className="sec"><span className="sec-ico">💦</span>Ready to wash</div>
 <button onClick={start} className="nb nb-p" style={{width:"100%",padding:"16px 0",fontSize:16,fontWeight:800,background:on&&!blocked?cfg.primaryColor:"#555b6e",borderRadius:14,letterSpacing:.3}}>{!on?"⚠️ Machine Offline":blocked?`⏳ Reserved by ${blocked.userName}`:(()=>{const m=cfg.defaultWashMinutes||90;const h=Math.floor(m/60);const mm=m%60;return`✨ Turn ON — ${h>0?h+"h ":""}${mm>0?mm+"m":""}`.trim()})()}</button>
-</div>}
+</div>:null;
 
-{/* Schedule */}
-<div className="nm" style={{marginBottom:16,padding:22}}><div className="sec"><span className="sec-ico">📅</span>Schedule a slot</div>
+/* Schedule = booking form + Reservations list. Kept together as one logical section. */
+sections.schedule=(()=>{const visibleSch=sch.filter(s=>!isSchedulePast(s)||s.userId===user.id);const myPastCount=visibleSch.filter(s=>isSchedulePast(s)&&s.userId===user.id).length;return<><div className="nm" style={{marginBottom:16,padding:22}}><div className="sec"><span className="sec-ico">📅</span>Schedule a slot</div>
 <div style={{marginBottom:10}}><div style={{fontSize:13,color:"#555b6e",marginBottom:5,fontWeight:700}}>Date</div><input type="date" value={sd} onChange={e=>sSd(e.target.value)} className="ni" style={{fontSize:15}}/></div>
 <div style={{display:"flex",gap:8,marginBottom:10}}><div style={{flex:1}}><div style={{fontSize:13,color:"#555b6e",marginBottom:5,fontWeight:700}}>Start</div><input type="time" value={st} onChange={e=>sSt(e.target.value)} className="ni" style={{fontSize:15}}/></div><div style={{flex:1}}><div style={{fontSize:13,color:"#555b6e",marginBottom:5,fontWeight:700}}>End</div><input type="time" value={se} onChange={e=>sSe(e.target.value)} className="ni" style={{fontSize:15}}/></div></div>
 {sd&&st&&se&&(()=>{const startMs=new Date(`${sd}T${st}`).getTime();const endMs=new Date(`${sd}T${se}`).getTime();const dur=endMs>startMs?Math.round((endMs-startMs)/60000):0;return<div className="nm-in" style={{padding:"8px 12px",marginBottom:8}}><div className="sb"><div><div className="M" style={{fontSize:13,color:"#e2e6ef"}}>{st} → {se}</div><div style={{fontSize:10,color:"#555b6e"}}>{new Date(sd).toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"})}</div></div><div style={{textAlign:"right"}}><div style={{fontSize:16,fontWeight:800,color:dur>0?cfg.primaryColor:"#f87171"}}>{dur>0?`${dur}m`:"Invalid"}</div><div style={{fontSize:9,color:"#555b6e"}}>{dur>0?`${Math.floor(dur/60)}h ${dur%60}m`:"End must be after start"}</div></div></div></div>})()}
 <button onClick={addS} className="nb nb-p" style={{width:"100%",background:cfg.accentColor,color:"#1e2233",fontWeight:800}}>Reserve slot</button></div>
-{(()=>{/* Past reservations are private — only the user who scheduled them can see their own past ones.
-       Future/active reservations are visible to everyone (so housemates know when machine is booked). */
-const visibleSch=sch.filter(s=>!isSchedulePast(s)||s.userId===user.id);
-if(visibleSch.length===0)return null;
-const myPastCount=visibleSch.filter(s=>isSchedulePast(s)&&s.userId===user.id).length;
-return<div className="nm" style={{marginBottom:16,padding:22}}><div className="sec"><span className="sec-ico">🗓️</span>Reservations <span style={{fontSize:11,color:"#8890a4",fontWeight:700,marginLeft:"auto"}}>{visibleSch.length}</span></div>{visibleSch.map(s=>{const past=isSchedulePast(s);const endT=s.endTime||(()=>{const[h,m]=(s.startTime||s.dateTime?.split("T")[1]||"00:00").split(":").map(Number);const e=new Date(2000,0,1,h,m+(s.minutes||45));return e.toTimeString().slice(0,5)})();return<div key={s.id} className="sb" style={{padding:"10px 0",borderBottom:`1px solid ${ls}`,opacity:past?.55:1}}><div className="row"><span style={{fontSize:13}}>{s.userEmoji||"😊"}</span><div><div style={{fontSize:12,fontWeight:700,color:"#e2e6ef"}}>{s.userName}{s.userId===user.id&&<span style={{color:cfg.primaryColor,fontSize:9}}> you</span>}{past&&<span style={{color:"#8890a4",fontSize:9,marginLeft:4,fontWeight:600}}>· past</span>}</div><div style={{fontSize:10,color:"#555b6e"}}>{s.cycleName} · {new Date(s.dateTime).toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"})}</div><div className="M" style={{fontSize:11,color:"#8890a4"}}>{s.startTime||s.dateTime?.split("T")[1]||"?"} → {endT}</div></div></div>{s.userId===user.id&&!past&&<button onClick={()=>sES(s)} className="nb" style={{fontSize:9,padding:"3px 8px",color:cfg.primaryColor}}>Edit</button>}</div>})}{myPastCount>0&&<div style={{fontSize:9,color:"#555b6e",textAlign:"center",marginTop:8,fontStyle:"italic"}}>Your past reservations are private — only you see them</div>}</div>})()}
-
-{/* Sections — order configurable by admin via cfg.dashboardOrder.
-    Default: cleaning → washes → housemates. */}
-{(()=>{
-const sections={};
+{visibleSch.length>0&&<div className="nm" style={{marginBottom:16,padding:22}}><div className="sec"><span className="sec-ico">🗓️</span>Reservations <span style={{fontSize:11,color:"#8890a4",fontWeight:700,marginLeft:"auto"}}>{visibleSch.length}</span></div>{visibleSch.map(s=>{const past=isSchedulePast(s);const endT=s.endTime||(()=>{const[h,m]=(s.startTime||s.dateTime?.split("T")[1]||"00:00").split(":").map(Number);const e=new Date(2000,0,1,h,m+(s.minutes||45));return e.toTimeString().slice(0,5)})();return<div key={s.id} className="sb" style={{padding:"10px 0",borderBottom:`1px solid ${ls}`,opacity:past?.55:1}}><div className="row"><span style={{fontSize:13}}>{s.userEmoji||"😊"}</span><div><div style={{fontSize:12,fontWeight:700,color:"#e2e6ef"}}>{s.userName}{s.userId===user.id&&<span style={{color:cfg.primaryColor,fontSize:9}}> you</span>}{past&&<span style={{color:"#8890a4",fontSize:9,marginLeft:4,fontWeight:600}}>· past</span>}</div><div style={{fontSize:10,color:"#555b6e"}}>{s.cycleName} · {new Date(s.dateTime).toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"})}</div><div className="M" style={{fontSize:11,color:"#8890a4"}}>{s.startTime||s.dateTime?.split("T")[1]||"?"} → {endT}</div></div></div>{s.userId===user.id&&!past&&<button onClick={()=>sES(s)} className="nb" style={{fontSize:9,padding:"3px 8px",color:cfg.primaryColor}}>Edit</button>}</div>})}{myPastCount>0&&<div style={{fontSize:9,color:"#555b6e",textAlign:"center",marginTop:8,fontStyle:"italic"}}>Your past reservations are private — only you see them</div>}</div>}</>})();
 
 sections.cleaning=<CleaningCard cfg={cfg} user={user} users={users} roster={roster} completions={completions} toast={toast}/>;
 
@@ -570,10 +573,8 @@ return<button key={u.id} onClick={()=>{if(cfg.chatEnabled!==false)openChat(u.id)
 <div style={{flex:1}}><div style={{fontSize:11,fontWeight:700,color:"#e2e6ef"}}>{u.name}</div><div style={{fontSize:9,color}}>{status}</div></div>
 {cfg.chatEnabled!==false&&<span style={{fontSize:10,color:"#555b6e"}}>💬</span>}
 </button>})}</div></div>;
-/* Render sections in the admin-configured order. Falls back to default if missing. */
-const order=Array.isArray(cfg.dashboardOrder)&&cfg.dashboardOrder.length?cfg.dashboardOrder:["cleaning","washes","housemates"];
-const seen=new Set();
-const ordered=[...order.filter(k=>{if(seen.has(k))return false;seen.add(k);return sections[k]!==undefined}),...Object.keys(sections).filter(k=>!seen.has(k))];
+/* Render sections in the admin-configured order. Backfills missing/new sections at their default positions. */
+const ordered=mergeDashOrder(cfg.dashboardOrder).filter(k=>sections[k]!==undefined);
 return<>{ordered.map(k=><Fragment key={k}>{sections[k]}</Fragment>)}</>;
 })()}
 </div></div>;}
@@ -581,14 +582,14 @@ return<>{ordered.map(k=><Fragment key={k}>{sections[k]}</Fragment>)}</>;
 /* ═══ ADMIN ═══ */
 function AdminDash({cfg,setCfg,onOut,toast}){
 const[users,sU]=useState([]);const[mac,sM]=useState({running:false});const[sch,sSch]=useState([]);const[esp,sE]=useState(null);const[hist,sH]=useState([]);const[msgs,sMs]=useState([]);const[nn,sNN]=useState("");const[np,sNP]=useState("");const[tab,sT]=useState("dash");
-const[cP,sCP]=useState(cfg.primaryColor);const[cA,sCA]=useState(cfg.accentColor);const[aN,sAN]=useState(cfg.appName);const[aM,sAM]=useState(cfg.alertMinutesBefore||5);const[chatEn,sChatEn]=useState(cfg.chatEnabled!==false);const[apEm,sApEm]=useState(cfg.appEmoji||"🫧");const[mntn,sMntn]=useState(!!cfg.maintenance);const[adPw,sAdPw]=useState("");const[tagln,sTagln]=useState(cfg.tagline||"Smart laundry control");const[redMo,sRedMo]=useState(!!cfg.reduceMotion);const[defEm,sDefEm]=useState(cfg.defaultUserEmoji||"😊");const[cStop,sCStop]=useState(cfg.confirmStop!==false);const[aLog,sALog]=useState(cfg.autoLogoutMin||0);const[t24,sT24]=useState(cfg.time24!==false);const[sFin,sSFin]=useState(cfg.soundOnFinish!==false);const[grace,sGrace]=useState(cfg.gracePoweroffMin||5);const[defWash,sDefWash]=useState(cfg.defaultWashMinutes||90);const[tMode,sTMode]=useState(cfg.themeMode||"neumo");const[fnt,sFnt]=useState(cfg.fontFamily||"Nunito");const[dens,sDens]=useState(cfg.density||"comfy");const[rad,sRad]=useState(cfg.radius||"soft");const[dashOrd,sDashOrd]=useState(Array.isArray(cfg.dashboardOrder)?cfg.dashboardOrder:["cleaning","washes","housemates"]);const[clnVis,sClnVis]=useState(cfg.cleaningDoneVisibility||"everyone");const[userQ,sUserQ]=useState("");const[histQ,sHistQ]=useState("");const[manMin,sManMin]=useState(5);
+const[cP,sCP]=useState(cfg.primaryColor);const[cA,sCA]=useState(cfg.accentColor);const[aN,sAN]=useState(cfg.appName);const[aM,sAM]=useState(cfg.alertMinutesBefore||5);const[chatEn,sChatEn]=useState(cfg.chatEnabled!==false);const[apEm,sApEm]=useState(cfg.appEmoji||"🫧");const[mntn,sMntn]=useState(!!cfg.maintenance);const[adPw,sAdPw]=useState("");const[tagln,sTagln]=useState(cfg.tagline||"Smart laundry control");const[redMo,sRedMo]=useState(!!cfg.reduceMotion);const[defEm,sDefEm]=useState(cfg.defaultUserEmoji||"😊");const[cStop,sCStop]=useState(cfg.confirmStop!==false);const[aLog,sALog]=useState(cfg.autoLogoutMin||0);const[t24,sT24]=useState(cfg.time24!==false);const[sFin,sSFin]=useState(cfg.soundOnFinish!==false);const[grace,sGrace]=useState(cfg.gracePoweroffMin||5);const[defWash,sDefWash]=useState(cfg.defaultWashMinutes||90);const[tMode,sTMode]=useState(cfg.themeMode||"neumo");const[fnt,sFnt]=useState(cfg.fontFamily||"Nunito");const[dens,sDens]=useState(cfg.density||"comfy");const[rad,sRad]=useState(cfg.radius||"soft");const[dashOrd,sDashOrd]=useState(mergeDashOrder(cfg.dashboardOrder));const[clnVis,sClnVis]=useState(cfg.cleaningDoneVisibility||"everyone");const[userQ,sUserQ]=useState("");const[histQ,sHistQ]=useState("");const[manMin,sManMin]=useState(5);
 const[eu,sEU]=useState(null);const[sfu,sSFU]=useState(false);const[showChat,sC]=useState(false);const[editSch,sES]=useState(null);const[now,sN]=useState(Date.now());const[adLR,sAdLR]=useState(()=>{try{return+(localStorage.getItem("lh_admin_last_read")||0)}catch{return 0}});const[hs,sHs]=useState(null);const[spinStyle,sSpinStyle]=useState(cfg.spinnerStyle||"drop");
 
 const[roster,sRoster]=useState(null);const[completions,sComp]=useState({});
 useEffect(()=>{const a=DB.onUsersChange(sU);const b=DB.onMachineChange(sM);const c=DB.onScheduleChange(sSch);const d=DB.onEsp32Status(sE);const e=DB.onHistoryChange(sH);const f=DB.onChatMessages(sMs);const g=DB.onHisense(sHs);const h=DB.onCleaning(sRoster);const i=DB.onCleaningCompletions(sComp);const iv=setInterval(()=>sN(Date.now()),1000);return()=>{a();b();c();d();e();f();g();h();i();clearInterval(iv)}},[]);
 
 const addU=async()=>{if(!nn.trim()||!np.trim())return toast("Required","error");if(np.length<4)return toast("PIN 4+","error");if(users.find(u=>u.name.toLowerCase()===nn.trim().toLowerCase()))return toast("Exists","error");await DB.addUser({id:Date.now().toString(),name:nn.trim(),pin:np.trim(),emoji:cfg.defaultUserEmoji||"😊",dnd:false,disabled:false});sNN("");sNP("");toast(`${nn.trim()} added`,"success")};
-const saveCfg=async()=>{const u={...cfg,primaryColor:cP,accentColor:cA,appName:aN,appEmoji:(apEm||"🫧").trim()||"🫧",alertMinutesBefore:+aM||5,chatEnabled:chatEn,maintenance:mntn,tagline:tagln.trim()||"Smart laundry control",reduceMotion:redMo,defaultUserEmoji:(defEm||"😊").trim()||"😊",confirmStop:cStop,autoLogoutMin:Math.max(0,+aLog||0),time24:t24,soundOnFinish:sFin,spinnerStyle:spinStyle||"drum",gracePoweroffMin:Math.max(1,Math.min(30,+grace||5)),defaultWashMinutes:Math.max(15,Math.min(240,+defWash||90)),themeMode:tMode||"neumo",fontFamily:fnt||"Nunito",density:dens||"comfy",radius:rad||"soft",dashboardOrder:dashOrd&&dashOrd.length?dashOrd:["cleaning","washes","housemates"],cleaningDoneVisibility:clnVis||"everyone"};/* Clean up vestigial config keys from old versions */delete u.washCycles;delete u.maxWashMinutes;delete u.minWashMinutes;delete u.esp32Ip;if(adPw.trim())u.adminPassword=adPw.trim();await DB.setConfig(u);setCfg(u);sAdPw("");toast("Saved","success")};
+const saveCfg=async()=>{const u={...cfg,primaryColor:cP,accentColor:cA,appName:aN,appEmoji:(apEm||"🫧").trim()||"🫧",alertMinutesBefore:+aM||5,chatEnabled:chatEn,maintenance:mntn,tagline:tagln.trim()||"Smart laundry control",reduceMotion:redMo,defaultUserEmoji:(defEm||"😊").trim()||"😊",confirmStop:cStop,autoLogoutMin:Math.max(0,+aLog||0),time24:t24,soundOnFinish:sFin,spinnerStyle:spinStyle||"drum",gracePoweroffMin:Math.max(1,Math.min(30,+grace||5)),defaultWashMinutes:Math.max(15,Math.min(240,+defWash||90)),themeMode:tMode||"neumo",fontFamily:fnt||"Nunito",density:dens||"comfy",radius:rad||"soft",dashboardOrder:dashOrd&&dashOrd.length?dashOrd:["ready","schedule","cleaning","washes","housemates"],cleaningDoneVisibility:clnVis||"everyone"};/* Clean up vestigial config keys from old versions */delete u.washCycles;delete u.maxWashMinutes;delete u.minWashMinutes;delete u.esp32Ip;if(adPw.trim())u.adminPassword=adPw.trim();await DB.setConfig(u);setCfg(u);sAdPw("");toast("Saved","success")};
 const applyTheme=(t)=>{sCP(t.p);sCA(t.a);toast(`${t.n} theme — click Save to apply`,"info")};
 const forceStop=(msg="Stopped",type="warning")=>{if(cfg.confirmStop!==false&&!confirm("Force-stop the running machine?"))return;DB.setMachine({running:false});toast(msg,type)};
 const resetUserPin=async(u)=>{const p=prompt(`Set new PIN for ${u.name} (4+ digits):`);if(!p)return;if(p.length<4)return toast("PIN must be 4+ digits","error");await DB.updateUser(u.id,{pin:p});toast(`PIN reset for ${u.name}`,"success")};
@@ -816,7 +817,7 @@ return<div className="nm"><div className="sec"><span className="sec-ico">⚙️<
 
 <SH i="🗂" t="USER DASHBOARD LAYOUT">
 {(()=>{
-const LABELS={cleaning:{i:"🧹",l:"Cleaning week"},washes:{i:"✨",l:"My washes"},housemates:{i:"🏠",l:"Housemates"}};
+const LABELS={ready:{i:"💦",l:"Ready to wash"},schedule:{i:"📅",l:"Schedule & reservations"},cleaning:{i:"🧹",l:"Cleaning week"},washes:{i:"✨",l:"My washes"},housemates:{i:"🏠",l:"Housemates"}};
 const move=(idx,dir)=>{const o=[...dashOrd];const ni=idx+dir;if(ni<0||ni>=o.length)return;[o[idx],o[ni]]=[o[ni],o[idx]];sDashOrd(o)};
 return<><div style={{fontSize:11,color:"#8890a4",marginBottom:8,lineHeight:1.5}}>Drag-style ordering (use the arrows). Determines the order these cards appear on each user's dashboard.</div>
 {dashOrd.map((k,i)=>{const L=LABELS[k]||{i:"❔",l:k};return<div key={k} className="nm-in" style={{padding:"10px 12px",marginBottom:6,display:"flex",alignItems:"center",gap:10}}>
