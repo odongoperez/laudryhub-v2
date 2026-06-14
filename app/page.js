@@ -64,6 +64,23 @@ function rssiInfo(r){
 }
 function fmtDT(ms,t24){const d=new Date(ms);return d.toLocaleString(undefined,{hour12:!t24,year:"numeric",month:"short",day:"2-digit",hour:"2-digit",minute:"2-digit"})}
 function fmtT(ms,t24){return new Date(ms).toLocaleTimeString(undefined,{hour12:!t24,hour:"2-digit",minute:"2-digit"})}
+/* True end-time of a schedule entry, supporting both new-style (endTime) and old-style (minutes). */
+function scheduleEndMs(s){
+  if(!s)return 0;
+  const datePart=(s.dateTime||"").split("T")[0];
+  if(!datePart)return 0;
+  if(s.endTime){const t=new Date(`${datePart}T${s.endTime}`).getTime();if(t)return t}
+  const startMs=new Date(s.dateTime||`${datePart}T${s.startTime||"00:00"}`).getTime()||0;
+  return startMs+((s.minutes||45)*60000);
+}
+function isSchedulePast(s){return scheduleEndMs(s)<=Date.now()}
+/* ── Cleaning roster week helpers ── */
+function weekMonday(t){const d=new Date(t||Date.now());const dow=d.getDay();const back=(dow+6)%7;d.setHours(0,0,0,0);d.setDate(d.getDate()-back);return d.getTime()}
+function weekSundayEnd(t){return weekMonday(t)+7*86400000-1}
+function weekIndex(monday,base){if(!base)return 0;return Math.max(0,Math.floor((monday-base)/(7*86400000)))}
+/* Compute task assigned to a user this week given their slot index (0-4) and the rotation week. */
+function assignedTaskIdx(userSlot,wk,total){return((userSlot+wk)%total+total)%total}
+function fmtDateShort(t){return new Date(t).toLocaleDateString(undefined,{month:"short",day:"numeric"})}
 function sendPush(title,body){if(typeof window==="undefined"||!("Notification" in window))return;if(Notification.permission==="granted"){try{new Notification(title,{body,icon:"/icon-512.png",tag:"laundryhub",silent:false})}catch{}}}
 /* Hard refresh: unregister service worker, wipe all caches, then reload.
    Use when the PWA gets stuck on old code (after a deploy). Keeps localStorage
@@ -301,6 +318,54 @@ return<div style={{padding:"10px 14px",position:"relative"}}><div className="sb"
 </div>}
 </div>;}
 
+/* Cleaning roster card — shown to the 5 participants on their user dashboard.
+   Computes this week's assignment from baseMonday rotation, lets the user
+   mark themselves done, and shows everyone's status. */
+function CleaningCard({cfg,user,users,roster,completions,toast}){
+  const tasks=roster?.tasks||[];const pids=roster?.participantIds||[];
+  if(!roster?.enabled||pids.length===0||tasks.length===0)return null;
+  /* Bail out if the user isn't one of the 5 chosen participants. */
+  if(!pids.includes(user.id))return null;
+  const now=Date.now();const mon=weekMonday(now);const sunEnd=weekSundayEnd(now);
+  const wk=weekIndex(mon,roster.baseMonday||mon);
+  const total=Math.min(tasks.length,pids.length);
+  const mySlot=pids.indexOf(user.id);
+  const myTaskIdx=assignedTaskIdx(mySlot,wk,total);
+  const myTask=tasks[myTaskIdx]||`Task ${myTaskIdx+1}`;
+  const weekComp=completions?.[mon]||{};
+  const myDone=!!weekComp[user.id];
+  const msLeft=Math.max(0,sunEnd-now);
+  const daysLeft=Math.ceil(msLeft/86400000);
+  const c=cfg.primaryColor;
+  const togDone=async()=>{try{await DB.markCleaningDone(mon,user.id,!myDone);toast(myDone?"Marked undone":"Marked done — thanks!",myDone?"info":"success")}catch{toast("Could not save","error")}};
+  return<div className="nm" style={{padding:18,marginBottom:14}}>
+    <div className="sb" style={{marginBottom:12,alignItems:"baseline"}}>
+      <div className="sec" style={{marginBottom:0}}><span className="sec-ico">🧹</span>Cleaning week</div>
+      <div style={{fontSize:10,color:"#555b6e",fontWeight:600}}>{fmtDateShort(mon)} → {fmtDateShort(weekSundayEnd(now)-1)}</div>
+    </div>
+    {/* Hero: your task */}
+    <div className="nm-in" style={{padding:"14px 16px",marginBottom:12,border:`1px solid ${myDone?"#4ade8033":c+"33"}`,background:myDone?"#4ade8011":undefined}}>
+      <div style={{fontSize:10,color:"#555b6e",fontWeight:800,letterSpacing:1}}>YOUR TASK THIS WEEK</div>
+      <div style={{fontSize:22,fontWeight:900,color:myDone?"#4ade80":"#e2e6ef",marginTop:4,letterSpacing:-.3,textDecoration:myDone?"line-through":"none",textDecorationColor:"#4ade8088",textDecorationThickness:2}}>{myTask}</div>
+      <div style={{fontSize:10,color:"#8890a4",marginTop:5}}>{myDone?"✓ Done — well played":(daysLeft>0?`${daysLeft} day${daysLeft===1?"":"s"} left · due Sunday midnight`:"Due TODAY by midnight!")}</div>
+      <button onClick={togDone} className="nb" style={{marginTop:10,width:"100%",padding:"10px 0",fontSize:12,fontWeight:800,color:myDone?"#8890a4":"#4ade80",border:`1px solid ${myDone?"#8890a444":"#4ade8055"}`}}>{myDone?"↩ Mark as not done":"✓ Mark as done"}</button>
+    </div>
+    {/* Roster — everyone's task this week */}
+    <div style={{fontSize:10,color:"#555b6e",fontWeight:800,letterSpacing:1,marginBottom:6}}>EVERYONE THIS WEEK</div>
+    {pids.slice(0,total).map((pid,slot)=>{const u=users.find(x=>x.id===pid);const tIdx=assignedTaskIdx(slot,wk,total);const t=tasks[tIdx]||`Task ${tIdx+1}`;const done=!!weekComp[pid];const isMe=pid===user.id;return<div key={pid||slot} className="sb" style={{padding:"7px 2px",borderTop:slot>0?`1px solid ${ls}`:"none"}}>
+      <div className="row" style={{gap:8,flex:1,minWidth:0}}>
+        <span style={{fontSize:14}}>{u?.emoji||"😊"}</span>
+        <div style={{minWidth:0}}>
+          <div style={{fontSize:12,fontWeight:700,color:"#e2e6ef"}}>{u?.name||"(removed user)"}{isMe&&<span style={{color:c,fontSize:9,marginLeft:4}}>you</span>}</div>
+          <div style={{fontSize:10,color:done?"#4ade80":"#8890a4",textDecoration:done?"line-through":"none"}}>{t}</div>
+        </div>
+      </div>
+      <div className="np" style={{fontSize:9,color:done?"#4ade80":"#555b6e",background:bg}}>{done?"✓":"…"}</div>
+    </div>})}
+    <div style={{fontSize:9,color:"#555b6e",fontStyle:"italic",marginTop:10,textAlign:"center",lineHeight:1.5}}>Tasks rotate every Monday — you'll get a different one each week</div>
+  </div>;
+}
+
 /* Help / tutorial modal — short visual guide built into the app */
 function HelpModal({cfg,onClose}){
 const c=cfg.primaryColor;
@@ -371,10 +436,10 @@ function Login({onLogin,cfg}){const[m,setM]=useState("user");const[u,setU]=useSt
 
 /* ═══ USER ═══ */
 function UserDash({user:init,cfg,onOut,toast}){
-const[user,sU]=useState(init);const[mac,sM]=useState({running:false});const[sch,sSch]=useState([]);const[users,sUs]=useState([]);const[esp,sE]=useState(null);const[sd,sSd]=useState("");const[st,sSt]=useState("");const[se,sSe]=useState("");const[now,sN]=useState(Date.now());const[showProf,sP]=useState(false);const[showHelp,sShowHelp]=useState(false);const[editSch,sES]=useState(null);const[showChat,sC]=useState(false);const[chatTo,sChatTo]=useState("all");const[msgs,sMs]=useState([]);const[hist,sH]=useState([]);const[hs,sHs]=useState(null);const af=useRef(false);const prev=useRef(false);const warned=useRef(false);
+const[user,sU]=useState(init);const[mac,sM]=useState({running:false});const[sch,sSch]=useState([]);const[users,sUs]=useState([]);const[esp,sE]=useState(null);const[sd,sSd]=useState("");const[st,sSt]=useState("");const[se,sSe]=useState("");const[now,sN]=useState(Date.now());const[showProf,sP]=useState(false);const[showHelp,sShowHelp]=useState(false);const[editSch,sES]=useState(null);const[showChat,sC]=useState(false);const[chatTo,sChatTo]=useState("all");const[msgs,sMs]=useState([]);const[hist,sH]=useState([]);const[hs,sHs]=useState(null);const[roster,sRoster]=useState(null);const[completions,sComp]=useState({});const af=useRef(false);const prev=useRef(false);const warned=useRef(false);
 useEffect(()=>{try{if(!localStorage.getItem("lh_help_seen")){sShowHelp(true);localStorage.setItem("lh_help_seen","1")}}catch{}},[]);
 
-useEffect(()=>{const a=DB.onMachineChange(sM);const b=DB.onScheduleChange(sSch);const c=DB.onUsersChange(sUs);const d=DB.onEsp32Status(sE);const e=DB.onChatMessages(sMs);const f=DB.onHistoryChange(sH);const g=DB.onHisense(sHs);const iv=setInterval(()=>sN(Date.now()),1000);return()=>{a();b();c();d();e();f();g();clearInterval(iv)}},[]);
+useEffect(()=>{const a=DB.onMachineChange(sM);const b=DB.onScheduleChange(sSch);const c=DB.onUsersChange(sUs);const d=DB.onEsp32Status(sE);const e=DB.onChatMessages(sMs);const f=DB.onHistoryChange(sH);const g=DB.onHisense(sHs);const h=DB.onCleaning(sRoster);const i=DB.onCleaningCompletions(sComp);const iv=setInterval(()=>sN(Date.now()),1000);return()=>{a();b();c();d();e();f();g();h();i();clearInterval(iv)}},[]);
 useEffect(()=>{if(typeof window!=="undefined"&&"Notification" in window&&Notification.permission==="default"){Notification.requestPermission().catch(()=>{})}},[]);
 useEffect(()=>{if(prev.current&&!mac?.running&&!user.dnd){toast("Machine is free!","info");if(cfg.soundOnFinish!==false)playBeep("done");sendPush(`${cfg.appName||"LaundryHub"} — Machine free`,"The washing machine just finished.")}prev.current=mac?.running||false},[mac?.running,user.dnd,toast,cfg.soundOnFinish,cfg.appName]);
 useEffect(()=>{if(!mac?.running||mac.userId!==user.id){warned.current=false;return}
@@ -461,10 +526,18 @@ return<div style={{minHeight:"100vh",background:bg}}>
 <div style={{display:"flex",gap:8,marginBottom:10}}><div style={{flex:1}}><div style={{fontSize:13,color:"#555b6e",marginBottom:5,fontWeight:700}}>Start</div><input type="time" value={st} onChange={e=>sSt(e.target.value)} className="ni" style={{fontSize:15}}/></div><div style={{flex:1}}><div style={{fontSize:13,color:"#555b6e",marginBottom:5,fontWeight:700}}>End</div><input type="time" value={se} onChange={e=>sSe(e.target.value)} className="ni" style={{fontSize:15}}/></div></div>
 {sd&&st&&se&&(()=>{const startMs=new Date(`${sd}T${st}`).getTime();const endMs=new Date(`${sd}T${se}`).getTime();const dur=endMs>startMs?Math.round((endMs-startMs)/60000):0;return<div className="nm-in" style={{padding:"8px 12px",marginBottom:8}}><div className="sb"><div><div className="M" style={{fontSize:13,color:"#e2e6ef"}}>{st} → {se}</div><div style={{fontSize:10,color:"#555b6e"}}>{new Date(sd).toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"})}</div></div><div style={{textAlign:"right"}}><div style={{fontSize:16,fontWeight:800,color:dur>0?cfg.primaryColor:"#f87171"}}>{dur>0?`${dur}m`:"Invalid"}</div><div style={{fontSize:9,color:"#555b6e"}}>{dur>0?`${Math.floor(dur/60)}h ${dur%60}m`:"End must be after start"}</div></div></div></div>})()}
 <button onClick={addS} className="nb nb-p" style={{width:"100%",background:cfg.accentColor,color:"#1e2233",fontWeight:800}}>Reserve slot</button></div>
-{sch.length>0&&<div className="nm" style={{marginBottom:16,padding:22}}><div className="sec"><span className="sec-ico">🗓️</span>Upcoming <span style={{fontSize:11,color:"#8890a4",fontWeight:700,marginLeft:"auto"}}>{sch.length}</span></div>{sch.map(s=>{const endT=s.endTime||(()=>{const[h,m]=(s.startTime||s.dateTime?.split("T")[1]||"00:00").split(":").map(Number);const e=new Date(2000,0,1,h,m+(s.minutes||45));return e.toTimeString().slice(0,5)})();return<div key={s.id} className="sb" style={{padding:"10px 0",borderBottom:`1px solid ${ls}`}}><div className="row"><span style={{fontSize:13}}>{s.userEmoji||"😊"}</span><div><div style={{fontSize:12,fontWeight:700,color:"#e2e6ef"}}>{s.userName}{s.userId===user.id&&<span style={{color:cfg.primaryColor,fontSize:9}}> you</span>}</div><div style={{fontSize:10,color:"#555b6e"}}>{s.cycleName} · {new Date(s.dateTime).toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"})}</div><div className="M" style={{fontSize:11,color:"#8890a4"}}>{s.startTime||s.dateTime?.split("T")[1]||"?"} → {endT}</div></div></div>{s.userId===user.id&&<button onClick={()=>sES(s)} className="nb" style={{fontSize:9,padding:"3px 8px",color:cfg.primaryColor}}>Edit</button>}</div>})}</div>}
+{(()=>{/* Past reservations are private — only the user who scheduled them can see their own past ones.
+       Future/active reservations are visible to everyone (so housemates know when machine is booked). */
+const visibleSch=sch.filter(s=>!isSchedulePast(s)||s.userId===user.id);
+if(visibleSch.length===0)return null;
+const myPastCount=visibleSch.filter(s=>isSchedulePast(s)&&s.userId===user.id).length;
+return<div className="nm" style={{marginBottom:16,padding:22}}><div className="sec"><span className="sec-ico">🗓️</span>Reservations <span style={{fontSize:11,color:"#8890a4",fontWeight:700,marginLeft:"auto"}}>{visibleSch.length}</span></div>{visibleSch.map(s=>{const past=isSchedulePast(s);const endT=s.endTime||(()=>{const[h,m]=(s.startTime||s.dateTime?.split("T")[1]||"00:00").split(":").map(Number);const e=new Date(2000,0,1,h,m+(s.minutes||45));return e.toTimeString().slice(0,5)})();return<div key={s.id} className="sb" style={{padding:"10px 0",borderBottom:`1px solid ${ls}`,opacity:past?.55:1}}><div className="row"><span style={{fontSize:13}}>{s.userEmoji||"😊"}</span><div><div style={{fontSize:12,fontWeight:700,color:"#e2e6ef"}}>{s.userName}{s.userId===user.id&&<span style={{color:cfg.primaryColor,fontSize:9}}> you</span>}{past&&<span style={{color:"#8890a4",fontSize:9,marginLeft:4,fontWeight:600}}>· past</span>}</div><div style={{fontSize:10,color:"#555b6e"}}>{s.cycleName} · {new Date(s.dateTime).toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"})}</div><div className="M" style={{fontSize:11,color:"#8890a4"}}>{s.startTime||s.dateTime?.split("T")[1]||"?"} → {endT}</div></div></div>{s.userId===user.id&&!past&&<button onClick={()=>sES(s)} className="nb" style={{fontSize:9,padding:"3px 8px",color:cfg.primaryColor}}>Edit</button>}</div>})}{myPastCount>0&&<div style={{fontSize:9,color:"#555b6e",textAlign:"center",marginTop:8,fontStyle:"italic"}}>Your past reservations are private — only you see them</div>}</div>})()}
 
 {/* My washes */}
 {(()=>{const mine=hist.filter(h=>h.userId===user.id);if(!mine.length)return null;const monthStart=new Date();monthStart.setDate(1);monthStart.setHours(0,0,0,0);const thisMonth=mine.filter(h=>h.finishedAt>=monthStart.getTime()).length;const totalMin=mine.reduce((a,h)=>a+Math.round(h.durationMs/60000),0);const totalWater=mine.reduce((a,h)=>a+(h.waterLiters||0),0);const totalEnergy=mine.reduce((a,h)=>a+(h.energyKwh||0),0);return<div className="nm" style={{marginBottom:16,padding:22}}><div className="sec"><span className="sec-ico">✨</span>My washes</div><div className="g3" style={{marginBottom:(totalWater||totalEnergy)?8:12,gap:8}}><div className="nm-in" style={{padding:"13px 8px",textAlign:"center"}}><div style={{fontSize:12,color:"#555b6e",marginBottom:4,fontWeight:700}}>🏆 Total</div><div style={{fontSize:22,fontWeight:900,color:"#e2e6ef"}}>{mine.length}</div></div><div className="nm-in" style={{padding:"13px 8px",textAlign:"center"}}><div style={{fontSize:12,color:"#555b6e",marginBottom:4,fontWeight:700}}>📆 Month</div><div style={{fontSize:22,fontWeight:900,color:cfg.primaryColor}}>{thisMonth}</div></div><div className="nm-in" style={{padding:"13px 8px",textAlign:"center"}}><div style={{fontSize:12,color:"#555b6e",marginBottom:4,fontWeight:700}}>⏱ Time</div><div style={{fontSize:22,fontWeight:900,color:"#e2e6ef"}}>{Math.floor(totalMin/60)}h</div></div></div>{(totalWater||totalEnergy)?<div className="g2" style={{marginBottom:12,gap:8}}><div className="nm-in" style={{padding:"13px 10px",textAlign:"center"}}><div style={{fontSize:12,color:"#555b6e",marginBottom:4,fontWeight:700}}>💧 Water</div><div style={{fontSize:19,fontWeight:900,color:"#60a5fa"}}>{totalWater.toFixed(0)} <span style={{fontSize:12,color:"#555b6e",fontWeight:600}}>L</span></div></div><div className="nm-in" style={{padding:"13px 10px",textAlign:"center"}}><div style={{fontSize:12,color:"#555b6e",marginBottom:4,fontWeight:700}}>⚡ Energy</div><div style={{fontSize:19,fontWeight:900,color:"#fbbf24"}}>{totalEnergy.toFixed(2)} <span style={{fontSize:12,color:"#555b6e",fontWeight:600}}>kWh</span></div></div></div>:null}{mine.slice(0,5).map(h=><div key={h.id} className="sb" style={{padding:"11px 0",borderTop:`1px solid ${ls}`}}><div style={{flex:1,minWidth:0}}><div style={{fontSize:14,fontWeight:700,color:"#e2e6ef"}}>{h.cycleName}</div><div style={{fontSize:12,color:"#555b6e",marginTop:3}}>{fmtDT(h.finishedAt,cfg.time24!==false)}{(h.waterLiters||h.energyKwh)&&` · ${h.waterLiters?h.waterLiters.toFixed(1)+"L":""}${h.waterLiters&&h.energyKwh?" · ":""}${h.energyKwh?h.energyKwh.toFixed(2)+"kWh":""}`}</div></div><span className="M" style={{fontSize:13,color:"#8890a4",whiteSpace:"nowrap",fontWeight:700}}>{Math.round(h.durationMs/60000)}m</span></div>)}</div>})()}
+
+{/* Cleaning roster — only renders for the 5 participating users */}
+<CleaningCard cfg={cfg} user={user} users={users} roster={roster} completions={completions} toast={toast}/>
 
 {/* Housemates — click to chat */}
 <div className="nm" style={{padding:22}}><div className="sec"><span className="sec-ico">🏠</span>Housemates</div>
@@ -494,7 +567,8 @@ const[users,sU]=useState([]);const[mac,sM]=useState({running:false});const[sch,s
 const[cP,sCP]=useState(cfg.primaryColor);const[cA,sCA]=useState(cfg.accentColor);const[aN,sAN]=useState(cfg.appName);const[aM,sAM]=useState(cfg.alertMinutesBefore||5);const[chatEn,sChatEn]=useState(cfg.chatEnabled!==false);const[apEm,sApEm]=useState(cfg.appEmoji||"🫧");const[mntn,sMntn]=useState(!!cfg.maintenance);const[adPw,sAdPw]=useState("");const[tagln,sTagln]=useState(cfg.tagline||"Smart laundry control");const[redMo,sRedMo]=useState(!!cfg.reduceMotion);const[defEm,sDefEm]=useState(cfg.defaultUserEmoji||"😊");const[cStop,sCStop]=useState(cfg.confirmStop!==false);const[aLog,sALog]=useState(cfg.autoLogoutMin||0);const[t24,sT24]=useState(cfg.time24!==false);const[sFin,sSFin]=useState(cfg.soundOnFinish!==false);const[grace,sGrace]=useState(cfg.gracePoweroffMin||5);const[defWash,sDefWash]=useState(cfg.defaultWashMinutes||90);const[tMode,sTMode]=useState(cfg.themeMode||"neumo");const[fnt,sFnt]=useState(cfg.fontFamily||"Nunito");const[dens,sDens]=useState(cfg.density||"comfy");const[rad,sRad]=useState(cfg.radius||"soft");const[userQ,sUserQ]=useState("");const[histQ,sHistQ]=useState("");const[manMin,sManMin]=useState(5);
 const[eu,sEU]=useState(null);const[sfu,sSFU]=useState(false);const[showChat,sC]=useState(false);const[editSch,sES]=useState(null);const[now,sN]=useState(Date.now());const[adLR,sAdLR]=useState(()=>{try{return+(localStorage.getItem("lh_admin_last_read")||0)}catch{return 0}});const[hs,sHs]=useState(null);const[spinStyle,sSpinStyle]=useState(cfg.spinnerStyle||"drop");
 
-useEffect(()=>{const a=DB.onUsersChange(sU);const b=DB.onMachineChange(sM);const c=DB.onScheduleChange(sSch);const d=DB.onEsp32Status(sE);const e=DB.onHistoryChange(sH);const f=DB.onChatMessages(sMs);const g=DB.onHisense(sHs);const iv=setInterval(()=>sN(Date.now()),1000);return()=>{a();b();c();d();e();f();g();clearInterval(iv)}},[]);
+const[roster,sRoster]=useState(null);const[completions,sComp]=useState({});
+useEffect(()=>{const a=DB.onUsersChange(sU);const b=DB.onMachineChange(sM);const c=DB.onScheduleChange(sSch);const d=DB.onEsp32Status(sE);const e=DB.onHistoryChange(sH);const f=DB.onChatMessages(sMs);const g=DB.onHisense(sHs);const h=DB.onCleaning(sRoster);const i=DB.onCleaningCompletions(sComp);const iv=setInterval(()=>sN(Date.now()),1000);return()=>{a();b();c();d();e();f();g();h();i();clearInterval(iv)}},[]);
 
 const addU=async()=>{if(!nn.trim()||!np.trim())return toast("Required","error");if(np.length<4)return toast("PIN 4+","error");if(users.find(u=>u.name.toLowerCase()===nn.trim().toLowerCase()))return toast("Exists","error");await DB.addUser({id:Date.now().toString(),name:nn.trim(),pin:np.trim(),emoji:cfg.defaultUserEmoji||"😊",dnd:false,disabled:false});sNN("");sNP("");toast(`${nn.trim()} added`,"success")};
 const saveCfg=async()=>{const u={...cfg,primaryColor:cP,accentColor:cA,appName:aN,appEmoji:(apEm||"🫧").trim()||"🫧",alertMinutesBefore:+aM||5,chatEnabled:chatEn,maintenance:mntn,tagline:tagln.trim()||"Smart laundry control",reduceMotion:redMo,defaultUserEmoji:(defEm||"😊").trim()||"😊",confirmStop:cStop,autoLogoutMin:Math.max(0,+aLog||0),time24:t24,soundOnFinish:sFin,spinnerStyle:spinStyle||"drum",gracePoweroffMin:Math.max(1,Math.min(30,+grace||5)),defaultWashMinutes:Math.max(15,Math.min(240,+defWash||90)),themeMode:tMode||"neumo",fontFamily:fnt||"Nunito",density:dens||"comfy",radius:rad||"soft"};/* Clean up vestigial config keys from old versions */delete u.washCycles;delete u.maxWashMinutes;delete u.minWashMinutes;delete u.esp32Ip;if(adPw.trim())u.adminPassword=adPw.trim();await DB.setConfig(u);setCfg(u);sAdPw("");toast("Saved","success")};
@@ -518,7 +592,7 @@ const rmM=useHs?hs.remainingMin:(mac?.running?Math.ceil(Math.max(0,(mac.startTim
 const prog=useHs&&hs.totalMin?Math.max(0,1-(hs.remainingMin/hs.totalMin)):(mac?.running?Math.min(1,(now-mac.startTime)/mac.durationMs):0);
 const graceLeft=hs&&hs.graceUntil?Math.max(0,hs.graceUntil-now):0;const inGrace=graceLeft>0;const graceM=Math.floor(graceLeft/60000);const graceS=Math.floor((graceLeft%60000)/1000);
 const wc={};hist.forEach(h=>{wc[h.userName]=(wc[h.userName]||0)+1});
-const tabs=[{id:"dash",l:"Dashboard"},{id:"users",l:"Users"},{id:"ctrl",l:"Control"},{id:"esp",l:"ESP32"},{id:"api",l:"API"},{id:"log",l:"History"},{id:"cfg",l:"Settings"}];
+const tabs=[{id:"dash",l:"Dashboard"},{id:"users",l:"Users"},{id:"ctrl",l:"Control"},{id:"clean",l:"Cleaning"},{id:"esp",l:"ESP32"},{id:"api",l:"API"},{id:"log",l:"History"},{id:"cfg",l:"Settings"}];
 
 return<div style={{minHeight:"100vh",background:bg}}>
 <Head cfg={cfg} user={{name:"Admin",emoji:"🛡️"}} admin onOut={onOut} onChat={()=>{const ts=Date.now();try{localStorage.setItem("lh_admin_last_read",ts.toString())}catch{}sAdLR(ts);sC(true)}} unread={msgs.filter(m=>(m.to==="admin"||(m.to==="all"&&m.fromId!=="admin"))&&m.timestamp>adLR).length} esp={esp}/>
@@ -578,6 +652,40 @@ return<div style={{minHeight:"100vh",background:bg}}>
 </div>
 {sch.length>0&&<><div style={{fontSize:13,fontWeight:700,color:"#e2e6ef",marginTop:14,marginBottom:8}}>Reservations ({sch.length})</div>{sch.map(s=>{const endT=s.endTime||(()=>{const[h,m]=(s.startTime||s.dateTime?.split("T")[1]||"00:00").split(":").map(Number);const en=new Date(2000,0,1,h,m+(s.minutes||45));return en.toTimeString().slice(0,5)})();return<div key={s.id} className="sb" style={{padding:"8px 0",borderBottom:`1px solid ${ls}`}}><div className="row"><span style={{fontSize:13}}>{s.userEmoji||"😊"}</span><div><div style={{fontSize:12,fontWeight:700,color:"#e2e6ef"}}>{s.userName}</div><div style={{fontSize:10,color:"#555b6e"}}>{s.cycleName} · {new Date(s.dateTime).toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"})}</div><div className="M" style={{fontSize:11,color:"#8890a4"}}>{s.startTime||s.dateTime?.split("T")[1]||"?"} → {endT}</div></div></div><div className="row" style={{gap:3}}><button onClick={()=>sES(s)} className="nb" style={{fontSize:9,padding:"3px 8px",color:cfg.primaryColor}}>Edit</button><button onClick={async()=>{await DB.removeScheduleEntry(s.id);toast(`Cancelled ${s.userName}'s reservation`,"info")}} className="nb" style={{fontSize:9,padding:"3px 8px",color:"#f87171"}}>Cancel</button></div></div>})}<button onClick={async()=>{await DB.clearSchedule();toast("All reservations cleared","info")}} className="nb" style={{marginTop:8,width:"100%",color:"#f87171",fontSize:11}}>Clear all reservations</button></>}
 </div>}
+
+{tab==="clean"&&(()=>{
+const enabled=!!roster?.enabled;
+const pids=roster?.participantIds||["","","","",""];
+const tasks=roster?.tasks||["","","","",""];
+const baseMon=roster?.baseMonday||weekMonday(Date.now());
+const mon=weekMonday(Date.now());const wk=weekIndex(mon,baseMon);
+const total=Math.min(5,tasks.filter(t=>t).length,pids.filter(p=>p).length);
+const enabledUsers=users.filter(u=>!u.disabled);
+const save=async(patch)=>{const next={enabled,participantIds:pids.slice(0,5),tasks:tasks.slice(0,5),baseMonday:baseMon,...patch};while(next.participantIds.length<5)next.participantIds.push("");while(next.tasks.length<5)next.tasks.push("");try{await DB.setCleaning(next);toast("Saved","success")}catch{toast("Save failed","error")}};
+const setSlot=(slot,uid)=>{const p=[...pids];while(p.length<5)p.push("");p[slot]=uid;save({participantIds:p})};
+const setTask=(slot,name)=>{const t=[...tasks];while(t.length<5)t.push("");t[slot]=name;save({tasks:t})};
+const resetRotation=async()=>{if(!confirm("Reset rotation so this Monday becomes the new starting point?\n\nEveryone's task numbers will shift back to their slot order."))return;await save({baseMonday:weekMonday(Date.now())})};
+return<div className="nm"><div className="sb" style={{marginBottom:12}}><div className="sec" style={{marginBottom:0}}><span className="sec-ico">🧹</span>Cleaning roster</div><div className="row" style={{gap:5}}><span style={{fontSize:10,color:enabled?"#4ade80":"#555b6e",fontWeight:800}}>{enabled?"ON":"OFF"}</span><Tog on={enabled} onChange={()=>save({enabled:!enabled})} color={cfg.primaryColor}/></div></div>
+<div style={{fontSize:11,color:"#8890a4",marginBottom:14,lineHeight:1.5}}>5 users, 5 tasks. Rotation shifts every Monday at 00:00 — each person does a different task each week. Cycle completes every 5 weeks.</div>
+
+<div style={{fontSize:10,color:"#555b6e",fontWeight:800,letterSpacing:1.5,marginBottom:8,paddingBottom:6,borderBottom:`1px solid ${ls}`}}>📝 TASKS</div>
+{[0,1,2,3,4].map(i=><div key={i} className="row" style={{gap:8,marginBottom:7}}><span className="M" style={{fontSize:11,color:"#555b6e",width:18,textAlign:"right"}}>{i+1}</span><input value={tasks[i]||""} onChange={e=>setTask(i,e.target.value)} placeholder={`Task ${i+1} (e.g. "Kitchen")`} className="ni" style={{fontSize:12}}/></div>)}
+
+<div style={{fontSize:10,color:"#555b6e",fontWeight:800,letterSpacing:1.5,marginBottom:8,paddingBottom:6,borderBottom:`1px solid ${ls}`,marginTop:18}}>👥 PARTICIPANTS</div>
+<div style={{fontSize:10,color:"#8890a4",marginBottom:8}}>Pick 5 users. The ORDER matters — it determines the rotation offset.</div>
+{[0,1,2,3,4].map(i=><div key={i} className="row" style={{gap:8,marginBottom:7}}><span className="M" style={{fontSize:11,color:"#555b6e",width:18,textAlign:"right"}}>{i+1}</span><select value={pids[i]||""} onChange={e=>setSlot(i,e.target.value)} className="ni" style={{fontSize:12}}><option value="">— choose user —</option>{enabledUsers.map(u=><option key={u.id} value={u.id} disabled={pids.includes(u.id)&&pids[i]!==u.id}>{u.emoji||"😊"} {u.name}</option>)}</select></div>)}
+
+<div style={{fontSize:10,color:"#555b6e",fontWeight:800,letterSpacing:1.5,marginBottom:8,paddingBottom:6,borderBottom:`1px solid ${ls}`,marginTop:18}}>📅 ROTATION</div>
+<div className="nm-in" style={{padding:"10px 12px",marginBottom:8}}><div className="sb"><div><div style={{fontSize:10,color:"#555b6e"}}>Base week</div><div style={{fontSize:13,fontWeight:700,color:"#e2e6ef"}}>{fmtDateShort(baseMon)}</div></div><div style={{textAlign:"right"}}><div style={{fontSize:10,color:"#555b6e"}}>Week #</div><div className="M" style={{fontSize:13,fontWeight:700,color:cfg.primaryColor}}>{wk}</div></div></div></div>
+<button onClick={resetRotation} className="nb" style={{fontSize:10,padding:"6px 12px",color:"#fbbf24",width:"100%"}}>↻ Reset rotation (start fresh this Monday)</button>
+
+{total>0&&<><div style={{fontSize:10,color:"#555b6e",fontWeight:800,letterSpacing:1.5,marginBottom:8,paddingBottom:6,borderBottom:`1px solid ${ls}`,marginTop:18}}>👁 PREVIEW — THIS WEEK ({fmtDateShort(mon)} → {fmtDateShort(weekSundayEnd(Date.now())-1)})</div>
+{pids.slice(0,total).map((pid,slot)=>{const u=users.find(x=>x.id===pid);if(!u)return null;const tIdx=assignedTaskIdx(slot,wk,total);const t=tasks[tIdx]||`Task ${tIdx+1}`;const done=!!(completions?.[mon]||{})[pid];return<div key={pid} className="sb" style={{padding:"6px 0",borderBottom:`1px solid ${ls}`}}><div className="row" style={{gap:8}}><span style={{fontSize:13}}>{u.emoji||"😊"}</span><span style={{fontSize:12,fontWeight:700,color:"#e2e6ef"}}>{u.name}</span></div><div className="row" style={{gap:6}}><span style={{fontSize:11,color:done?"#4ade80":"#8890a4",fontWeight:600,textDecoration:done?"line-through":"none"}}>{t}</span><span className="np" style={{fontSize:9,color:done?"#4ade80":"#555b6e",background:bg}}>{done?"✓":"…"}</span></div></div>})}
+
+<div style={{fontSize:10,color:"#555b6e",fontWeight:800,letterSpacing:1.5,marginBottom:8,paddingBottom:6,borderBottom:`1px solid ${ls}`,marginTop:18}}>📊 NEXT 5 WEEKS</div>
+<div style={{overflowX:"auto"}}><table style={{width:"100%",fontSize:10,borderCollapse:"collapse"}}><thead><tr><th style={{textAlign:"left",padding:"4px 6px",color:"#555b6e",fontWeight:700}}>User</th>{[0,1,2,3,4].map(o=>{const m=weekMonday(Date.now()+o*7*86400000);return<th key={o} style={{textAlign:"left",padding:"4px 6px",color:o===0?cfg.primaryColor:"#555b6e",fontWeight:700}}>{fmtDateShort(m)}{o===0&&" ←"}</th>})}</tr></thead><tbody>{pids.slice(0,total).map((pid,slot)=>{const u=users.find(x=>x.id===pid);if(!u)return null;return<tr key={pid}><td style={{padding:"6px",color:"#e2e6ef",fontWeight:700,whiteSpace:"nowrap"}}>{u.emoji||"😊"} {u.name}</td>{[0,1,2,3,4].map(o=>{const fwk=wk+o;const tIdx=assignedTaskIdx(slot,fwk,total);return<td key={o} style={{padding:"6px",color:o===0?"#e2e6ef":"#8890a4",fontWeight:o===0?700:500}}>{tasks[tIdx]||`T${tIdx+1}`}</td>})}</tr>})}</tbody></table></div>
+</>}
+</div>})()}
 
 {tab==="esp"&&<div className="nm"><div className="sb" style={{marginBottom:12}}><div className="sec" style={{marginBottom:0}}>ESP32 Monitor</div><div className="row" style={{gap:4}}><button onClick={rebootEsp} disabled={!on} className="nb" style={{fontSize:10,padding:"6px 10px",color:on?"#fbbf24":"#555b6e",fontWeight:700,opacity:on?1:.5,cursor:on?"pointer":"not-allowed"}}>↻ Reboot</button><button onClick={()=>{if(!confirm("Toggle relay manually?"))return;DB.sendEspCommand({type:"toggle_relay",ts:Date.now()});toast("Toggle sent","info")}} disabled={!on} className="nb" style={{fontSize:10,padding:"6px 10px",color:on?cfg.primaryColor:"#555b6e",fontWeight:700,opacity:on?1:.5,cursor:on?"pointer":"not-allowed"}}>⚡ Toggle</button></div></div>{esp?<>
 {/* WiFi signal — dedicated wide card with bar + % + label + tip */}

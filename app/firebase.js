@@ -108,6 +108,18 @@ const DB = {
     });
   },
 
+  // ── Cleaning roster ──
+  // Stored at /cleaning/config: { enabled, participantIds[5], tasks[5], baseMonday }
+  // Completions at /cleaning/completions/{weekMondayMs}/{userId} = timestamp
+  async setCleaning(c) { await set(ref(db, "cleaning/config"), c); },
+  onCleaning(cb) { return onValue(ref(db, "cleaning/config"), s => cb(s.exists() ? s.val() : null)); },
+  async markCleaningDone(weekKey, userId, done) {
+    const path = `cleaning/completions/${weekKey}/${userId}`;
+    if (done) await set(ref(db, path), Date.now());
+    else await remove(ref(db, path));
+  },
+  onCleaningCompletions(cb) { return onValue(ref(db, "cleaning/completions"), s => cb(s.exists() ? s.val() : {})); },
+
   // ── Chat / Messages ──
   async sendMessage(msg) {
     const msgRef = push(ref(db, "chat"));
