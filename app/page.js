@@ -2,7 +2,7 @@
 import{useState,useEffect,useCallback,useRef,Fragment}from"react";
 import DB from"./firebase";
 
-const DEF={primaryColor:"#6C9BCF",accentColor:"#E8A87C",appName:"LaundryHub",appEmoji:"🫧",tagline:"Smart laundry control",alertMinutesBefore:5,chatEnabled:true,maintenance:false,reduceMotion:false,defaultUserEmoji:"😊",confirmStop:true,autoLogoutMin:0,time24:true,soundOnFinish:true,gracePoweroffMin:5,defaultWashMinutes:90,spinnerStyle:"drum",themeMode:"neumo",fontFamily:"Nunito",density:"comfy",radius:"soft",dashboardOrder:["ready","schedule","cleaning","washes","housemates"],cleaningDoneVisibility:"everyone"};
+const DEF={primaryColor:"#6C9BCF",accentColor:"#E8A87C",appName:"LaundryHub",appEmoji:"🫧",tagline:"Smart laundry control",alertMinutesBefore:5,chatEnabled:true,maintenance:false,reduceMotion:false,defaultUserEmoji:"😊",confirmStop:true,autoLogoutMin:0,time24:true,soundOnFinish:true,gracePoweroffMin:5,defaultWashMinutes:90,spinnerStyle:"drum",themeMode:"neumo",fontFamily:"Nunito",density:"comfy",radius:"soft",dashboardOrder:["ready","schedule","cleaning","washes","housemates"],dashboardSectionsEnabled:{},cleaningDoneVisibility:"everyone",cleaningTaskVisibility:"everyone"};
 
 /* ── Theme system catalog ── */
 const FONTS={
@@ -345,12 +345,18 @@ function CleaningCard({cfg,user,users,roster,completions,toast}){
   const msLeft=Math.max(0,sunEnd-now);
   const daysLeft=Math.ceil(msLeft/86400000);
   const c=cfg.primaryColor;
-  /* Visibility setting (set by admin): controls who sees ✓ status on the roster.
-     - "everyone": all 5 see everyone's done state (default)
-     - "self":     each user sees only their own ✓; others' rows blank
-     - "admin":    users see no ✓ marks at all (not even own); admin-only visibility */
+  /* Visibility settings (set by admin) — two independent controls:
+     1. cleaningTaskVisibility — who sees task assignments
+        - "everyone": full roster visible
+        - "self":     roster hidden, only user's own task shown
+     2. cleaningDoneVisibility — who sees the ✓ done state
+        - "everyone": all see all
+        - "self":     each user sees only their own ✓
+        - "admin":    users see no ✓ marks; only admin tab shows them */
   const vis=cfg.cleaningDoneVisibility||"everyone";
+  const taskVis=cfg.cleaningTaskVisibility||"everyone";
   const showOwnDone=vis!=="admin";
+  const showRoster=taskVis==="everyone";
   const togDone=async()=>{try{await DB.markCleaningDone(mon,user.id,!myDone);toast(myDone?"Marked undone":"Marked done — thanks!",myDone?"info":"success")}catch{toast("Could not save","error")}};
   return<div className="nm" style={{padding:18,marginBottom:14}}>
     <div className="sb" style={{marginBottom:12,alignItems:"baseline"}}>
@@ -365,7 +371,8 @@ function CleaningCard({cfg,user,users,roster,completions,toast}){
       <div style={{fontSize:10,color:"#8890a4",marginTop:5}}>{!showOwnDone?(daysLeft>0?`${daysLeft} day${daysLeft===1?"":"s"} left · due Sunday midnight`:"Due TODAY by midnight!"):(myDone?"✓ Done — well played":(daysLeft>0?`${daysLeft} day${daysLeft===1?"":"s"} left · due Sunday midnight`:"Due TODAY by midnight!"))}</div>
       <button onClick={togDone} className="nb" style={{marginTop:10,width:"100%",padding:"10px 0",fontSize:12,fontWeight:800,color:myDone&&showOwnDone?"#8890a4":"#4ade80",border:`1px solid ${myDone&&showOwnDone?"#8890a444":"#4ade8055"}`}}>{showOwnDone?(myDone?"↩ Mark as not done":"✓ Mark as done"):"✓ Mark as done"}</button>
     </div>
-    {/* Roster — everyone's task this week. ✓ shown depending on visibility setting. */}
+    {/* Roster — everyone's task this week. Hidden entirely when task visibility is "self". */}
+    {showRoster&&<>
     <div style={{fontSize:10,color:"#555b6e",fontWeight:800,letterSpacing:1,marginBottom:6}}>EVERYONE THIS WEEK</div>
     {pids.slice(0,total).map((pid,slot)=>{const u=users.find(x=>x.id===pid);const tIdx=assignedTaskIdx(slot,wk,total);const t=tasks[tIdx]||`Task ${tIdx+1}`;const done=!!weekComp[pid];const isMe=pid===user.id;
     const showThisDone=vis==="everyone"||(vis==="self"&&isMe);
@@ -379,7 +386,8 @@ function CleaningCard({cfg,user,users,roster,completions,toast}){
       </div>
       {showThisDone?<div className="np" style={{fontSize:9,color:done?"#4ade80":"#555b6e",background:bg}}>{done?"✓":"…"}</div>:<div style={{fontSize:9,color:"#555b6e",opacity:.4}}>—</div>}
     </div>})}
-    <div style={{fontSize:9,color:"#555b6e",fontStyle:"italic",marginTop:10,textAlign:"center",lineHeight:1.5}}>Tasks rotate every Monday — you'll get a different one each week{vis==="admin"&&<><br/>Completion status is visible only to admin</>}{vis==="self"&&<><br/>Only you can see your own completion status</>}</div>
+    </>}
+    <div style={{fontSize:9,color:"#555b6e",fontStyle:"italic",marginTop:10,textAlign:"center",lineHeight:1.5}}>Tasks rotate every Monday — you'll get a different one each week{!showRoster&&<><br/>Other people's tasks are hidden</>}{vis==="admin"&&<><br/>Completion status is visible only to admin</>}{vis==="self"&&showRoster&&<><br/>Only you can see your own completion status</>}</div>
   </div>;
 }
 
@@ -573,8 +581,10 @@ return<button key={u.id} onClick={()=>{if(cfg.chatEnabled!==false)openChat(u.id)
 <div style={{flex:1}}><div style={{fontSize:11,fontWeight:700,color:"#e2e6ef"}}>{u.name}</div><div style={{fontSize:9,color}}>{status}</div></div>
 {cfg.chatEnabled!==false&&<span style={{fontSize:10,color:"#555b6e"}}>💬</span>}
 </button>})}</div></div>;
-/* Render sections in the admin-configured order. Backfills missing/new sections at their default positions. */
-const ordered=mergeDashOrder(cfg.dashboardOrder).filter(k=>sections[k]!==undefined);
+/* Render sections in the admin-configured order. Backfills missing/new sections at their default positions.
+   Also skips sections explicitly disabled via cfg.dashboardSectionsEnabled. */
+const enabled=cfg.dashboardSectionsEnabled||{};
+const ordered=mergeDashOrder(cfg.dashboardOrder).filter(k=>sections[k]!==undefined&&enabled[k]!==false);
 return<>{ordered.map(k=><Fragment key={k}>{sections[k]}</Fragment>)}</>;
 })()}
 </div></div>;}
@@ -582,14 +592,14 @@ return<>{ordered.map(k=><Fragment key={k}>{sections[k]}</Fragment>)}</>;
 /* ═══ ADMIN ═══ */
 function AdminDash({cfg,setCfg,onOut,toast}){
 const[users,sU]=useState([]);const[mac,sM]=useState({running:false});const[sch,sSch]=useState([]);const[esp,sE]=useState(null);const[hist,sH]=useState([]);const[msgs,sMs]=useState([]);const[nn,sNN]=useState("");const[np,sNP]=useState("");const[tab,sT]=useState("dash");
-const[cP,sCP]=useState(cfg.primaryColor);const[cA,sCA]=useState(cfg.accentColor);const[aN,sAN]=useState(cfg.appName);const[aM,sAM]=useState(cfg.alertMinutesBefore||5);const[chatEn,sChatEn]=useState(cfg.chatEnabled!==false);const[apEm,sApEm]=useState(cfg.appEmoji||"🫧");const[mntn,sMntn]=useState(!!cfg.maintenance);const[adPw,sAdPw]=useState("");const[tagln,sTagln]=useState(cfg.tagline||"Smart laundry control");const[redMo,sRedMo]=useState(!!cfg.reduceMotion);const[defEm,sDefEm]=useState(cfg.defaultUserEmoji||"😊");const[cStop,sCStop]=useState(cfg.confirmStop!==false);const[aLog,sALog]=useState(cfg.autoLogoutMin||0);const[t24,sT24]=useState(cfg.time24!==false);const[sFin,sSFin]=useState(cfg.soundOnFinish!==false);const[grace,sGrace]=useState(cfg.gracePoweroffMin||5);const[defWash,sDefWash]=useState(cfg.defaultWashMinutes||90);const[tMode,sTMode]=useState(cfg.themeMode||"neumo");const[fnt,sFnt]=useState(cfg.fontFamily||"Nunito");const[dens,sDens]=useState(cfg.density||"comfy");const[rad,sRad]=useState(cfg.radius||"soft");const[dashOrd,sDashOrd]=useState(mergeDashOrder(cfg.dashboardOrder));const[clnVis,sClnVis]=useState(cfg.cleaningDoneVisibility||"everyone");const[userQ,sUserQ]=useState("");const[histQ,sHistQ]=useState("");const[manMin,sManMin]=useState(5);
+const[cP,sCP]=useState(cfg.primaryColor);const[cA,sCA]=useState(cfg.accentColor);const[aN,sAN]=useState(cfg.appName);const[aM,sAM]=useState(cfg.alertMinutesBefore||5);const[chatEn,sChatEn]=useState(cfg.chatEnabled!==false);const[apEm,sApEm]=useState(cfg.appEmoji||"🫧");const[mntn,sMntn]=useState(!!cfg.maintenance);const[adPw,sAdPw]=useState("");const[tagln,sTagln]=useState(cfg.tagline||"Smart laundry control");const[redMo,sRedMo]=useState(!!cfg.reduceMotion);const[defEm,sDefEm]=useState(cfg.defaultUserEmoji||"😊");const[cStop,sCStop]=useState(cfg.confirmStop!==false);const[aLog,sALog]=useState(cfg.autoLogoutMin||0);const[t24,sT24]=useState(cfg.time24!==false);const[sFin,sSFin]=useState(cfg.soundOnFinish!==false);const[grace,sGrace]=useState(cfg.gracePoweroffMin||5);const[defWash,sDefWash]=useState(cfg.defaultWashMinutes||90);const[tMode,sTMode]=useState(cfg.themeMode||"neumo");const[fnt,sFnt]=useState(cfg.fontFamily||"Nunito");const[dens,sDens]=useState(cfg.density||"comfy");const[rad,sRad]=useState(cfg.radius||"soft");const[dashOrd,sDashOrd]=useState(mergeDashOrder(cfg.dashboardOrder));const[secEn,sSecEn]=useState(cfg.dashboardSectionsEnabled||{});const[clnVis,sClnVis]=useState(cfg.cleaningDoneVisibility||"everyone");const[clnTaskVis,sClnTaskVis]=useState(cfg.cleaningTaskVisibility||"everyone");const[userQ,sUserQ]=useState("");const[histQ,sHistQ]=useState("");const[manMin,sManMin]=useState(5);
 const[eu,sEU]=useState(null);const[sfu,sSFU]=useState(false);const[showChat,sC]=useState(false);const[editSch,sES]=useState(null);const[now,sN]=useState(Date.now());const[adLR,sAdLR]=useState(()=>{try{return+(localStorage.getItem("lh_admin_last_read")||0)}catch{return 0}});const[hs,sHs]=useState(null);const[spinStyle,sSpinStyle]=useState(cfg.spinnerStyle||"drop");
 
 const[roster,sRoster]=useState(null);const[completions,sComp]=useState({});
 useEffect(()=>{const a=DB.onUsersChange(sU);const b=DB.onMachineChange(sM);const c=DB.onScheduleChange(sSch);const d=DB.onEsp32Status(sE);const e=DB.onHistoryChange(sH);const f=DB.onChatMessages(sMs);const g=DB.onHisense(sHs);const h=DB.onCleaning(sRoster);const i=DB.onCleaningCompletions(sComp);const iv=setInterval(()=>sN(Date.now()),1000);return()=>{a();b();c();d();e();f();g();h();i();clearInterval(iv)}},[]);
 
 const addU=async()=>{if(!nn.trim()||!np.trim())return toast("Required","error");if(np.length<4)return toast("PIN 4+","error");if(users.find(u=>u.name.toLowerCase()===nn.trim().toLowerCase()))return toast("Exists","error");await DB.addUser({id:Date.now().toString(),name:nn.trim(),pin:np.trim(),emoji:cfg.defaultUserEmoji||"😊",dnd:false,disabled:false});sNN("");sNP("");toast(`${nn.trim()} added`,"success")};
-const saveCfg=async()=>{const u={...cfg,primaryColor:cP,accentColor:cA,appName:aN,appEmoji:(apEm||"🫧").trim()||"🫧",alertMinutesBefore:+aM||5,chatEnabled:chatEn,maintenance:mntn,tagline:tagln.trim()||"Smart laundry control",reduceMotion:redMo,defaultUserEmoji:(defEm||"😊").trim()||"😊",confirmStop:cStop,autoLogoutMin:Math.max(0,+aLog||0),time24:t24,soundOnFinish:sFin,spinnerStyle:spinStyle||"drum",gracePoweroffMin:Math.max(1,Math.min(30,+grace||5)),defaultWashMinutes:Math.max(15,Math.min(240,+defWash||90)),themeMode:tMode||"neumo",fontFamily:fnt||"Nunito",density:dens||"comfy",radius:rad||"soft",dashboardOrder:dashOrd&&dashOrd.length?dashOrd:["ready","schedule","cleaning","washes","housemates"],cleaningDoneVisibility:clnVis||"everyone"};/* Clean up vestigial config keys from old versions */delete u.washCycles;delete u.maxWashMinutes;delete u.minWashMinutes;delete u.esp32Ip;if(adPw.trim())u.adminPassword=adPw.trim();await DB.setConfig(u);setCfg(u);sAdPw("");toast("Saved","success")};
+const saveCfg=async()=>{const u={...cfg,primaryColor:cP,accentColor:cA,appName:aN,appEmoji:(apEm||"🫧").trim()||"🫧",alertMinutesBefore:+aM||5,chatEnabled:chatEn,maintenance:mntn,tagline:tagln.trim()||"Smart laundry control",reduceMotion:redMo,defaultUserEmoji:(defEm||"😊").trim()||"😊",confirmStop:cStop,autoLogoutMin:Math.max(0,+aLog||0),time24:t24,soundOnFinish:sFin,spinnerStyle:spinStyle||"drum",gracePoweroffMin:Math.max(1,Math.min(30,+grace||5)),defaultWashMinutes:Math.max(15,Math.min(240,+defWash||90)),themeMode:tMode||"neumo",fontFamily:fnt||"Nunito",density:dens||"comfy",radius:rad||"soft",dashboardOrder:dashOrd&&dashOrd.length?dashOrd:["ready","schedule","cleaning","washes","housemates"],dashboardSectionsEnabled:secEn||{},cleaningDoneVisibility:clnVis||"everyone",cleaningTaskVisibility:clnTaskVis||"everyone"};/* Clean up vestigial config keys from old versions */delete u.washCycles;delete u.maxWashMinutes;delete u.minWashMinutes;delete u.esp32Ip;if(adPw.trim())u.adminPassword=adPw.trim();await DB.setConfig(u);setCfg(u);sAdPw("");toast("Saved","success")};
 const applyTheme=(t)=>{sCP(t.p);sCA(t.a);toast(`${t.n} theme — click Save to apply`,"info")};
 const forceStop=(msg="Stopped",type="warning")=>{if(cfg.confirmStop!==false&&!confirm("Force-stop the running machine?"))return;DB.setMachine({running:false});toast(msg,type)};
 const resetUserPin=async(u)=>{const p=prompt(`Set new PIN for ${u.name} (4+ digits):`);if(!p)return;if(p.length<4)return toast("PIN must be 4+ digits","error");await DB.updateUser(u.id,{pin:p});toast(`PIN reset for ${u.name}`,"success")};
@@ -819,20 +829,32 @@ return<div className="nm"><div className="sec"><span className="sec-ico">⚙️<
 {(()=>{
 const LABELS={ready:{i:"💦",l:"Ready to wash"},schedule:{i:"📅",l:"Schedule & reservations"},cleaning:{i:"🧹",l:"Cleaning week"},washes:{i:"✨",l:"My washes"},housemates:{i:"🏠",l:"Housemates"}};
 const move=(idx,dir)=>{const o=[...dashOrd];const ni=idx+dir;if(ni<0||ni>=o.length)return;[o[idx],o[ni]]=[o[ni],o[idx]];sDashOrd(o)};
-return<><div style={{fontSize:11,color:"#8890a4",marginBottom:8,lineHeight:1.5}}>Drag-style ordering (use the arrows). Determines the order these cards appear on each user's dashboard.</div>
-{dashOrd.map((k,i)=>{const L=LABELS[k]||{i:"❔",l:k};return<div key={k} className="nm-in" style={{padding:"10px 12px",marginBottom:6,display:"flex",alignItems:"center",gap:10}}>
+const isOn=(k)=>secEn[k]!==false;
+const toggle=(k)=>sSecEn({...secEn,[k]:!isOn(k)});
+return<><div style={{fontSize:11,color:"#8890a4",marginBottom:8,lineHeight:1.5}}>Use the toggle to enable/disable a section, arrows to reorder. Applies to every user's dashboard. Don't forget to save.</div>
+{dashOrd.map((k,i)=>{const L=LABELS[k]||{i:"❔",l:k};const on=isOn(k);return<div key={k} className="nm-in" style={{padding:"10px 12px",marginBottom:6,display:"flex",alignItems:"center",gap:10,opacity:on?1:.55}}>
   <span className="M" style={{fontSize:10,color:"#555b6e",width:14,textAlign:"right"}}>{i+1}</span>
-  <span style={{fontSize:16}}>{L.i}</span>
-  <div style={{flex:1,fontSize:12,fontWeight:700,color:"#e2e6ef"}}>{L.l}</div>
+  <span style={{fontSize:16,filter:on?"none":"grayscale(.7)"}}>{L.i}</span>
+  <div style={{flex:1,fontSize:12,fontWeight:700,color:on?"#e2e6ef":"#555b6e",textDecoration:on?"none":"line-through"}}>{L.l}</div>
+  <Tog on={on} onChange={()=>toggle(k)} color={cfg.primaryColor}/>
   <button onClick={()=>move(i,-1)} disabled={i===0} className="nb" style={{padding:"4px 10px",fontSize:11,opacity:i===0?.3:1,cursor:i===0?"not-allowed":"pointer"}}>↑</button>
   <button onClick={()=>move(i,1)} disabled={i===dashOrd.length-1} className="nb" style={{padding:"4px 10px",fontSize:11,opacity:i===dashOrd.length-1?.3:1,cursor:i===dashOrd.length-1?"not-allowed":"pointer"}}>↓</button>
 </div>})}
-<div style={{fontSize:10,color:"#555b6e",marginTop:8,fontStyle:"italic"}}>Tip: Cleaning week only shows for the 5 chosen participants — others see washes + housemates only.</div>
+<div style={{fontSize:10,color:"#555b6e",marginTop:8,fontStyle:"italic"}}>Tip: Cleaning week only shows for the 5 chosen participants — others see only the enabled non-cleaning sections.</div>
 </>})()}
 
-<div style={{marginTop:12}}><label style={{fontSize:11,color:"#555b6e",marginBottom:6,display:"block"}}>Cleaning ✓ status visible to</label>
+<div style={{marginTop:14,paddingTop:12,borderTop:`1px solid ${ls}`}}><div style={{fontSize:10,color:"#8890a4",fontWeight:800,letterSpacing:1,marginBottom:6}}>🧹 CLEANING PRIVACY</div>
+
+<div style={{marginBottom:10}}><label style={{fontSize:11,color:"#555b6e",marginBottom:6,display:"block"}}>Task assignments visible to <span style={{color:"#8890a4"}}>(what task each person has)</span></label>
+<div className="wrap">{[{k:"everyone",l:"👥 Everyone"},{k:"self",l:"🙋 Yourself only"}].map(o=><button key={o.k} onClick={()=>sClnTaskVis(o.k)} className="nb" style={{fontSize:11,padding:"7px 12px",color:clnTaskVis===o.k?cfg.primaryColor:"#c8cdd8",fontWeight:clnTaskVis===o.k?800:600,flex:1}}>{o.l}</button>)}</div>
+<div style={{fontSize:10,color:"#555b6e",marginTop:6,fontStyle:"italic"}}>{clnTaskVis==="everyone"?"Everyone sees the full roster — who's assigned to what.":"Each user only sees their own task; the roster list is hidden."}</div>
+</div>
+
+<div><label style={{fontSize:11,color:"#555b6e",marginBottom:6,display:"block"}}>Done status (✓) visible to <span style={{color:"#8890a4"}}>(who has finished their task)</span></label>
 <div className="wrap">{[{k:"everyone",l:"👥 Everyone"},{k:"self",l:"🙋 Yourself only"},{k:"admin",l:"🛡 Admin only"}].map(o=><button key={o.k} onClick={()=>sClnVis(o.k)} className="nb" style={{fontSize:11,padding:"7px 12px",color:clnVis===o.k?cfg.primaryColor:"#c8cdd8",fontWeight:clnVis===o.k?800:600,flex:1}}>{o.l}</button>)}</div>
 <div style={{fontSize:10,color:"#555b6e",marginTop:6,fontStyle:"italic",lineHeight:1.5}}>{clnVis==="everyone"?"All 5 participants see who has marked their task done.":clnVis==="self"?"Each user only sees their own ✓; nobody can see if others have done their task.":"Users see no ✓ marks at all. Only you (admin) can track completion via the Cleaning tab."}</div>
+</div>
+<div style={{fontSize:10,color:"#fbbf24",marginTop:10,padding:"6px 10px",background:"#fbbf2411",borderRadius:6,fontWeight:600}}>⚠ Click <b>Save all settings</b> at the bottom for changes to apply to users.</div>
 </div>
 </SH>
 

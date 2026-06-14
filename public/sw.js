@@ -1,4 +1,4 @@
-const VERSION = "v21-ready-schedule-reorderable";
+const VERSION = "v22-section-toggles-task-visibility";
 const STATIC_CACHE = `laundryhub-static-${VERSION}`;
 const RUNTIME_CACHE = `laundryhub-runtime-${VERSION}`;
 
