@@ -1,4 +1,4 @@
-const VERSION = "v15-settings-cleanup";
+const VERSION = "v16-real-themes-fonts-density";
 const STATIC_CACHE = `laundryhub-static-${VERSION}`;
 const RUNTIME_CACHE = `laundryhub-runtime-${VERSION}`;
 
