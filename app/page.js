@@ -2,7 +2,7 @@
 import{useState,useEffect,useCallback,useRef}from"react";
 import DB from"./firebase";
 
-const DEF={primaryColor:"#6C9BCF",accentColor:"#E8A87C",appName:"LaundryHub",esp32Ip:"",alertMinutesBefore:5,maxWashMinutes:120,minWashMinutes:5,chatEnabled:true,appEmoji:"🫧",maintenance:false,tagline:"Smart laundry control",reduceMotion:false,defaultUserEmoji:"😊",confirmStop:true,autoLogoutMin:0,time24:true,soundOnFinish:true,gracePoweroffMin:5,defaultWashMinutes:90,spinnerStyle:"drum"};
+const DEF={primaryColor:"#6C9BCF",accentColor:"#E8A87C",appName:"LaundryHub",appEmoji:"🫧",tagline:"Smart laundry control",alertMinutesBefore:5,chatEnabled:true,maintenance:false,reduceMotion:false,defaultUserEmoji:"😊",confirmStop:true,autoLogoutMin:0,time24:true,soundOnFinish:true,gracePoweroffMin:5,defaultWashMinutes:90,spinnerStyle:"drum"};
 const THEMES=[{n:"Ocean",p:"#6C9BCF",a:"#E8A87C"},{n:"Sunset",p:"#F59E0B",a:"#EF4444"},{n:"Forest",p:"#10B981",a:"#84CC16"},{n:"Midnight",p:"#8B5CF6",a:"#EC4899"},{n:"Rose",p:"#F472B6",a:"#FCD34D"},{n:"Slate",p:"#64748B",a:"#06B6D4"}];
 const ADMIN_PW="1234";
 const EMO=["😊","😎","🧑‍💻","👩‍🔧","🧑‍🎓","👨‍🍳","🦊","🐱","🐶","🦁","🐸","🦄","🌻","🔥","⚡","🎮","🎵","🏀","🌊","🚀","💎","🍕","🎯","🤖","👑","🎨","🧠","💻"];
@@ -426,13 +426,13 @@ return<button key={u.id} onClick={()=>{if(cfg.chatEnabled!==false)openChat(u.id)
 /* ═══ ADMIN ═══ */
 function AdminDash({cfg,setCfg,onOut,toast}){
 const[users,sU]=useState([]);const[mac,sM]=useState({running:false});const[sch,sSch]=useState([]);const[esp,sE]=useState(null);const[hist,sH]=useState([]);const[msgs,sMs]=useState([]);const[nn,sNN]=useState("");const[np,sNP]=useState("");const[tab,sT]=useState("dash");
-const[cP,sCP]=useState(cfg.primaryColor);const[cA,sCA]=useState(cfg.accentColor);const[aN,sAN]=useState(cfg.appName);const[aM,sAM]=useState(cfg.alertMinutesBefore||5);const[mxW,sMxW]=useState(cfg.maxWashMinutes||120);const[mnW,sMnW]=useState(cfg.minWashMinutes||5);const[chatEn,sChatEn]=useState(cfg.chatEnabled!==false);const[apEm,sApEm]=useState(cfg.appEmoji||"🫧");const[mntn,sMntn]=useState(!!cfg.maintenance);const[adPw,sAdPw]=useState("");const[tagln,sTagln]=useState(cfg.tagline||"Smart laundry control");const[redMo,sRedMo]=useState(!!cfg.reduceMotion);const[defEm,sDefEm]=useState(cfg.defaultUserEmoji||"😊");const[cStop,sCStop]=useState(cfg.confirmStop!==false);const[aLog,sALog]=useState(cfg.autoLogoutMin||0);const[t24,sT24]=useState(cfg.time24!==false);const[sFin,sSFin]=useState(cfg.soundOnFinish!==false);const[grace,sGrace]=useState(cfg.gracePoweroffMin||5);const[defWash,sDefWash]=useState(cfg.defaultWashMinutes||90);const[userQ,sUserQ]=useState("");const[histQ,sHistQ]=useState("");const[manMin,sManMin]=useState(5);
+const[cP,sCP]=useState(cfg.primaryColor);const[cA,sCA]=useState(cfg.accentColor);const[aN,sAN]=useState(cfg.appName);const[aM,sAM]=useState(cfg.alertMinutesBefore||5);const[chatEn,sChatEn]=useState(cfg.chatEnabled!==false);const[apEm,sApEm]=useState(cfg.appEmoji||"🫧");const[mntn,sMntn]=useState(!!cfg.maintenance);const[adPw,sAdPw]=useState("");const[tagln,sTagln]=useState(cfg.tagline||"Smart laundry control");const[redMo,sRedMo]=useState(!!cfg.reduceMotion);const[defEm,sDefEm]=useState(cfg.defaultUserEmoji||"😊");const[cStop,sCStop]=useState(cfg.confirmStop!==false);const[aLog,sALog]=useState(cfg.autoLogoutMin||0);const[t24,sT24]=useState(cfg.time24!==false);const[sFin,sSFin]=useState(cfg.soundOnFinish!==false);const[grace,sGrace]=useState(cfg.gracePoweroffMin||5);const[defWash,sDefWash]=useState(cfg.defaultWashMinutes||90);const[userQ,sUserQ]=useState("");const[histQ,sHistQ]=useState("");const[manMin,sManMin]=useState(5);
 const[eu,sEU]=useState(null);const[sfu,sSFU]=useState(false);const[showChat,sC]=useState(false);const[editSch,sES]=useState(null);const[now,sN]=useState(Date.now());const[adLR,sAdLR]=useState(()=>{try{return+(localStorage.getItem("lh_admin_last_read")||0)}catch{return 0}});const[hs,sHs]=useState(null);const[spinStyle,sSpinStyle]=useState(cfg.spinnerStyle||"drop");
 
 useEffect(()=>{const a=DB.onUsersChange(sU);const b=DB.onMachineChange(sM);const c=DB.onScheduleChange(sSch);const d=DB.onEsp32Status(sE);const e=DB.onHistoryChange(sH);const f=DB.onChatMessages(sMs);const g=DB.onHisense(sHs);const iv=setInterval(()=>sN(Date.now()),1000);return()=>{a();b();c();d();e();f();g();clearInterval(iv)}},[]);
 
 const addU=async()=>{if(!nn.trim()||!np.trim())return toast("Required","error");if(np.length<4)return toast("PIN 4+","error");if(users.find(u=>u.name.toLowerCase()===nn.trim().toLowerCase()))return toast("Exists","error");await DB.addUser({id:Date.now().toString(),name:nn.trim(),pin:np.trim(),emoji:cfg.defaultUserEmoji||"😊",dnd:false,disabled:false});sNN("");sNP("");toast(`${nn.trim()} added`,"success")};
-const saveCfg=async()=>{const u={...cfg,primaryColor:cP,accentColor:cA,appName:aN,appEmoji:(apEm||"🫧").trim()||"🫧",alertMinutesBefore:+aM||5,maxWashMinutes:+mxW||120,minWashMinutes:+mnW||5,chatEnabled:chatEn,maintenance:mntn,tagline:tagln.trim()||"Smart laundry control",reduceMotion:redMo,defaultUserEmoji:(defEm||"😊").trim()||"😊",confirmStop:cStop,autoLogoutMin:Math.max(0,+aLog||0),time24:t24,soundOnFinish:sFin,spinnerStyle:spinStyle||"drum",gracePoweroffMin:Math.max(1,Math.min(30,+grace||5)),defaultWashMinutes:Math.max(15,Math.min(240,+defWash||90))};delete u.washCycles;if(adPw.trim())u.adminPassword=adPw.trim();await DB.setConfig(u);setCfg(u);sAdPw("");toast("Saved","success")};
+const saveCfg=async()=>{const u={...cfg,primaryColor:cP,accentColor:cA,appName:aN,appEmoji:(apEm||"🫧").trim()||"🫧",alertMinutesBefore:+aM||5,chatEnabled:chatEn,maintenance:mntn,tagline:tagln.trim()||"Smart laundry control",reduceMotion:redMo,defaultUserEmoji:(defEm||"😊").trim()||"😊",confirmStop:cStop,autoLogoutMin:Math.max(0,+aLog||0),time24:t24,soundOnFinish:sFin,spinnerStyle:spinStyle||"drum",gracePoweroffMin:Math.max(1,Math.min(30,+grace||5)),defaultWashMinutes:Math.max(15,Math.min(240,+defWash||90))};/* Clean up vestigial config keys from old versions */delete u.washCycles;delete u.maxWashMinutes;delete u.minWashMinutes;delete u.esp32Ip;if(adPw.trim())u.adminPassword=adPw.trim();await DB.setConfig(u);setCfg(u);sAdPw("");toast("Saved","success")};
 const applyTheme=(t)=>{sCP(t.p);sCA(t.a);toast(`${t.n} theme — click Save to apply`,"info")};
 const forceStop=(msg="Stopped",type="warning")=>{if(cfg.confirmStop!==false&&!confirm("Force-stop the running machine?"))return;DB.setMachine({running:false});toast(msg,type)};
 const resetUserPin=async(u)=>{const p=prompt(`Set new PIN for ${u.name} (4+ digits):`);if(!p)return;if(p.length<4)return toast("PIN must be 4+ digits","error");await DB.updateUser(u.id,{pin:p});toast(`PIN reset for ${u.name}`,"success")};
@@ -593,36 +593,47 @@ return<div className="nm"><div className="sec"><span className="sec-ico">🔌</s
 {histF.length>50&&<div style={{fontSize:10,color:"#555b6e",textAlign:"center",marginTop:10}}>Showing 50 of {histF.length} — export CSV for full</div>}
 </div>})()}
 
-{/* Settings — admin full control */}
-{tab==="cfg"&&<div className="nm"><div className="sec"><span className="sec-ico">⚙️</span>Settings</div><div style={{display:"grid",gap:10}}>
-<div className="g2" style={{gridTemplateColumns:"3fr 1fr"}}><div><label style={{fontSize:11,color:"#555b6e",marginBottom:4,display:"block"}}>App name</label><input value={aN} onChange={e=>sAN(e.target.value)} className="ni"/></div><div><label style={{fontSize:11,color:"#555b6e",marginBottom:4,display:"block"}}>Emoji</label><input value={apEm} onChange={e=>sApEm(e.target.value)} maxLength={4} className="ni" style={{textAlign:"center",fontSize:16}}/></div></div>
+{/* Settings — admin full control. Reorganized into clear sections. */}
+{tab==="cfg"&&(()=>{
+const SH=({i,t,children})=><div style={{margin:"6px 0 10px"}}><div style={{fontSize:10,color:"#8890a4",fontWeight:800,letterSpacing:1.5,marginBottom:8,paddingBottom:6,borderBottom:`1px solid ${ls}`}}>{i} {t}</div>{children}</div>;
+const TR=({t,d,on,onChange,color})=><div className="sb" style={{padding:"8px 0"}}><div style={{flex:1}}><div style={{fontSize:12,fontWeight:700,color:"#e2e6ef"}}>{t}</div><div style={{fontSize:10,color:"#555b6e",marginTop:1}}>{d}</div></div><Tog on={on} onChange={onChange} color={color||cfg.primaryColor}/></div>;
+return<div className="nm"><div className="sec"><span className="sec-ico">⚙️</span>Settings</div><div style={{display:"grid",gap:6}}>
+
+<SH i="🏷" t="BRANDING">
+<div className="g2" style={{gridTemplateColumns:"3fr 1fr",marginBottom:8}}><div><label style={{fontSize:11,color:"#555b6e",marginBottom:4,display:"block"}}>App name</label><input value={aN} onChange={e=>sAN(e.target.value)} className="ni"/></div><div><label style={{fontSize:11,color:"#555b6e",marginBottom:4,display:"block"}}>Emoji</label><input value={apEm} onChange={e=>sApEm(e.target.value)} maxLength={4} className="ni" style={{textAlign:"center",fontSize:16}}/></div></div>
 <div><label style={{fontSize:11,color:"#555b6e",marginBottom:4,display:"block"}}>Welcome tagline <span style={{color:"#8890a4"}}>(shown on login)</span></label><input value={tagln} onChange={e=>sTagln(e.target.value)} maxLength={60} placeholder="Smart laundry control" className="ni"/></div>
-<div><label style={{fontSize:11,color:"#555b6e",marginBottom:6,display:"block"}}>Theme presets</label><div className="wrap">{THEMES.map(t=><button key={t.n} onClick={()=>applyTheme(t)} className="nb" style={{fontSize:10,padding:"6px 12px",display:"flex",alignItems:"center",gap:6,fontWeight:700}}><span style={{display:"inline-block",width:12,height:12,borderRadius:6,background:`linear-gradient(135deg,${t.p} 0 50%,${t.a} 50% 100%)`}}/>{t.n}</button>)}</div></div>
-<div className="g2"><div><label style={{fontSize:11,color:"#555b6e",marginBottom:4,display:"block"}}>Primary</label><div className="row"><input type="color" value={cP} onChange={e=>sCP(e.target.value)} style={{width:34,height:30,border:"none",borderRadius:8,cursor:"pointer"}}/><input value={cP} onChange={e=>sCP(e.target.value)} className="ni" style={{fontSize:11}}/></div></div><div><label style={{fontSize:11,color:"#555b6e",marginBottom:4,display:"block"}}>Accent</label><div className="row"><input type="color" value={cA} onChange={e=>sCA(e.target.value)} style={{width:34,height:30,border:"none",borderRadius:8,cursor:"pointer"}}/><input value={cA} onChange={e=>sCA(e.target.value)} className="ni" style={{fontSize:11}}/></div></div></div>
-<div className="g3"><div><label style={{fontSize:11,color:"#555b6e",marginBottom:4,display:"block"}}>Min wash (min)</label><input type="number" value={mnW} onChange={e=>sMnW(e.target.value)} className="ni" min="1" max="30"/></div><div><label style={{fontSize:11,color:"#555b6e",marginBottom:4,display:"block"}}>Max wash (min)</label><input type="number" value={mxW} onChange={e=>sMxW(e.target.value)} className="ni" min="30" max="240"/></div><div><label style={{fontSize:11,color:"#555b6e",marginBottom:4,display:"block"}}>Reminder (min)</label><input type="number" value={aM} onChange={e=>sAM(e.target.value)} className="ni" min="1" max="15"/></div></div>
-<div className="g2"><div><label style={{fontSize:11,color:"#555b6e",marginBottom:4,display:"block"}}>Powering-off countdown (min) <span style={{color:"#8890a4"}}>(after wash ends)</span></label><input type="number" value={grace} onChange={e=>sGrace(e.target.value)} className="ni" min="1" max="30"/></div><div><label style={{fontSize:11,color:"#555b6e",marginBottom:4,display:"block"}}>Default wash duration (min) <span style={{color:"#8890a4"}}>(Turn ON button)</span></label><input type="number" value={defWash} onChange={e=>sDefWash(e.target.value)} className="ni" min="15" max="240"/></div></div>
-<div><label style={{fontSize:11,color:"#555b6e",marginBottom:4,display:"block"}}>Admin password <span style={{color:"#8890a4"}}>(blank = keep current)</span></label><input type="password" value={adPw} onChange={e=>sAdPw(e.target.value)} placeholder="New password" className="ni" autoComplete="new-password"/></div>
-<div><label style={{fontSize:11,color:"#555b6e",marginBottom:4,display:"block"}}>Default emoji for new users</label><input value={defEm} onChange={e=>sDefEm(e.target.value)} maxLength={4} className="ni" style={{textAlign:"center",fontSize:16}}/></div>
-<div><label style={{fontSize:11,color:"#555b6e",marginBottom:6,display:"block"}}>Spinner style <span style={{color:"#8890a4"}}>(main wash animation)</span></label><div className="wrap">{[
-  {k:"drum",l:"🌀 Washer drum",new:true},
-  {k:"swirl",l:"💫 Swirl",new:true},
-  {k:"bubbles",l:"🫧 Foam bubbles",new:true},
-  {k:"droplet",l:"💧 Water drop",new:true},
-  {k:"drop",l:"💧 Classic"},
-  {k:"pulse",l:"● Pulse"},
-  {k:"ring",l:"◜ Ring"},
-  {k:"dots",l:"••• Dots"},
-  {k:"bubble",l:"🫧 Bubble"},
-  {k:"wave",l:"▊ Wave"},
-].map(s=><button key={s.k} onClick={()=>sSpinStyle(s.k)} className="nb" style={{fontSize:11,padding:"7px 12px",color:spinStyle===s.k?cfg.primaryColor:"#c8cdd8",fontWeight:spinStyle===s.k?800:600,position:"relative"}}>{s.l}{s.new&&<sup style={{color:"#fbbf24",fontSize:8,marginLeft:3,fontWeight:800}}>NEW</sup>}</button>)}</div><div style={{marginTop:10,display:"flex",justifyContent:"center",padding:"14px 0"}}><Wash on={true} prog={.65} c={cP} paused={false} grace={false} spinnerStyle={spinStyle} sz={90}/></div></div>
-<div className="sb" style={{padding:"10px 0"}}><div><div style={{fontSize:12,fontWeight:700,color:"#e2e6ef"}}>Enable chat</div><div style={{fontSize:10,color:"#555b6e"}}>Users can message each other</div></div><Tog on={chatEn} onChange={()=>sChatEn(!chatEn)} color={cfg.primaryColor}/></div>
-<div className="sb" style={{padding:"10px 0"}}><div><div style={{fontSize:12,fontWeight:700,color:"#e2e6ef"}}>Reduce motion</div><div style={{fontSize:10,color:"#555b6e"}}>Disable animations for accessibility</div></div><Tog on={redMo} onChange={()=>sRedMo(!redMo)} color={cfg.primaryColor}/></div>
-<div className="sb" style={{padding:"10px 0"}}><div><div style={{fontSize:12,fontWeight:700,color:"#e2e6ef"}}>24-hour time</div><div style={{fontSize:10,color:"#555b6e"}}>Use 14:30 instead of 2:30 PM</div></div><Tog on={t24} onChange={()=>sT24(!t24)} color={cfg.primaryColor}/></div>
-<div className="sb" style={{padding:"10px 0"}}><div><div style={{fontSize:12,fontWeight:700,color:"#e2e6ef"}}>Confirm before force-stop</div><div style={{fontSize:10,color:"#555b6e"}}>Ask before stopping a running wash</div></div><Tog on={cStop} onChange={()=>sCStop(!cStop)} color={cfg.primaryColor}/></div>
-<div className="sb" style={{padding:"10px 0"}}><div><div style={{fontSize:12,fontWeight:700,color:"#e2e6ef"}}>Beep when wash finishes</div><div style={{fontSize:10,color:"#555b6e"}}>Play a tone on user dashboard when machine frees</div></div><Tog on={sFin} onChange={()=>sSFin(!sFin)} color={cfg.primaryColor}/></div>
-<div><label style={{fontSize:11,color:"#555b6e",marginBottom:4,display:"block"}}>Auto-logout after idle (minutes) <span style={{color:"#8890a4"}}>(0 = never)</span></label><input type="number" value={aLog} onChange={e=>sALog(e.target.value)} className="ni" min="0" max="120"/></div>
-<div className="sb" style={{padding:"10px 0"}}><div><div style={{fontSize:12,fontWeight:700,color:"#e2e6ef"}}>Maintenance mode</div><div style={{fontSize:10,color:"#555b6e"}}>Show red banner — use when servicing the machine</div></div><Tog on={mntn} onChange={()=>sMntn(!mntn)} color="#f87171"/></div>
-<button onClick={saveCfg} className="nb nb-p" style={{width:"100%",padding:"12px 0",fontSize:14,fontWeight:800,background:cfg.primaryColor}}>Save</button>
+</SH>
+
+<SH i="🎨" t="APPEARANCE">
+<div style={{marginBottom:10}}><label style={{fontSize:11,color:"#555b6e",marginBottom:6,display:"block"}}>Theme presets</label><div className="wrap">{THEMES.map(t=><button key={t.n} onClick={()=>applyTheme(t)} className="nb" style={{fontSize:10,padding:"6px 12px",display:"flex",alignItems:"center",gap:6,fontWeight:700}}><span style={{display:"inline-block",width:12,height:12,borderRadius:6,background:`linear-gradient(135deg,${t.p} 0 50%,${t.a} 50% 100%)`}}/>{t.n}</button>)}</div></div>
+<div className="g2" style={{marginBottom:10}}><div><label style={{fontSize:11,color:"#555b6e",marginBottom:4,display:"block"}}>Primary color</label><div className="row"><input type="color" value={cP} onChange={e=>sCP(e.target.value)} style={{width:34,height:30,border:"none",borderRadius:8,cursor:"pointer"}}/><input value={cP} onChange={e=>sCP(e.target.value)} className="ni" style={{fontSize:11}}/></div></div><div><label style={{fontSize:11,color:"#555b6e",marginBottom:4,display:"block"}}>Accent color</label><div className="row"><input type="color" value={cA} onChange={e=>sCA(e.target.value)} style={{width:34,height:30,border:"none",borderRadius:8,cursor:"pointer"}}/><input value={cA} onChange={e=>sCA(e.target.value)} className="ni" style={{fontSize:11}}/></div></div></div>
+<div><label style={{fontSize:11,color:"#555b6e",marginBottom:6,display:"block"}}>Wash spinner</label><div className="wrap">{[{k:"drum",l:"🌀 Drum",new:true},{k:"swirl",l:"💫 Swirl",new:true},{k:"bubbles",l:"🫧 Foam",new:true},{k:"droplet",l:"💧 Drop",new:true},{k:"drop",l:"💧 Classic"},{k:"pulse",l:"● Pulse"},{k:"ring",l:"◜ Ring"},{k:"dots",l:"••• Dots"},{k:"wave",l:"▊ Wave"}].map(s=><button key={s.k} onClick={()=>sSpinStyle(s.k)} className="nb" style={{fontSize:11,padding:"6px 11px",color:spinStyle===s.k?cfg.primaryColor:"#c8cdd8",fontWeight:spinStyle===s.k?800:600,position:"relative"}}>{s.l}{s.new&&<sup style={{color:"#fbbf24",fontSize:8,marginLeft:3,fontWeight:800}}>NEW</sup>}</button>)}</div><div style={{marginTop:8,display:"flex",justifyContent:"center",padding:"10px 0"}}><Wash on={true} prog={.65} c={cP} paused={false} grace={false} spinnerStyle={spinStyle} sz={80}/></div></div>
+<TR t="Reduce motion" d="Disable animations for accessibility" on={redMo} onChange={()=>sRedMo(!redMo)}/>
+</SH>
+
+<SH i="🌀" t="WASH BEHAVIOUR">
+<div className="g2" style={{marginBottom:8}}><div><label style={{fontSize:11,color:"#555b6e",marginBottom:4,display:"block"}}>Default wash (min) <span style={{color:"#8890a4"}}>Turn ON button</span></label><input type="number" value={defWash} onChange={e=>sDefWash(e.target.value)} className="ni" min="15" max="240"/></div><div><label style={{fontSize:11,color:"#555b6e",marginBottom:4,display:"block"}}>Powering-off (min) <span style={{color:"#8890a4"}}>after wash ends</span></label><input type="number" value={grace} onChange={e=>sGrace(e.target.value)} className="ni" min="1" max="30"/></div></div>
+<div><label style={{fontSize:11,color:"#555b6e",marginBottom:4,display:"block"}}>Reminder (min before end) <span style={{color:"#8890a4"}}>push notification</span></label><input type="number" value={aM} onChange={e=>sAM(e.target.value)} className="ni" min="1" max="15"/></div>
+<TR t="Confirm before force-stop" d="Ask before stopping a running wash" on={cStop} onChange={()=>sCStop(!cStop)}/>
+<TR t="Beep when wash finishes" d="Play a tone when machine frees" on={sFin} onChange={()=>sSFin(!sFin)}/>
+</SH>
+
+<SH i="💬" t="FEATURES">
+<TR t="Enable chat" d="Users can message each other" on={chatEn} onChange={()=>sChatEn(!chatEn)}/>
+<TR t="24-hour time" d="Use 14:30 instead of 2:30 PM" on={t24} onChange={()=>sT24(!t24)}/>
+<div style={{marginTop:8}}><label style={{fontSize:11,color:"#555b6e",marginBottom:4,display:"block"}}>Default emoji for new users</label><input value={defEm} onChange={e=>sDefEm(e.target.value)} maxLength={4} className="ni" style={{textAlign:"center",fontSize:16}}/></div>
+</SH>
+
+<SH i="🛡" t="SECURITY">
+<div style={{marginBottom:8}}><label style={{fontSize:11,color:"#555b6e",marginBottom:4,display:"block"}}>Admin password <span style={{color:"#8890a4"}}>blank = keep current</span></label><input type="password" value={adPw} onChange={e=>sAdPw(e.target.value)} placeholder="New password" className="ni" autoComplete="new-password"/></div>
+<div><label style={{fontSize:11,color:"#555b6e",marginBottom:4,display:"block"}}>Auto-logout after idle (min) <span style={{color:"#8890a4"}}>0 = never</span></label><input type="number" value={aLog} onChange={e=>sALog(e.target.value)} className="ni" min="0" max="120"/></div>
+</SH>
+
+<SH i="🔧" t="SYSTEM">
+<TR t="Maintenance mode" d="Show red banner when servicing the machine" on={mntn} onChange={()=>sMntn(!mntn)} color="#f87171"/>
+</SH>
+
+<button onClick={saveCfg} className="nb nb-p" style={{width:"100%",padding:"13px 0",fontSize:14,fontWeight:800,background:cfg.primaryColor,marginTop:6}}>💾 Save all settings</button>
 <div style={{marginTop:14,paddingTop:14,borderTop:`1px solid ${ls}`}}>
 <div style={{fontSize:10,color:"#f87171",fontWeight:800,letterSpacing:1.2,marginBottom:8}}>⚠ DANGER ZONE</div>
 <div className="g2" style={{gap:6,marginBottom:6}}>
@@ -634,7 +645,7 @@ return<div className="nm"><div className="sec"><span className="sec-ico">🔌</s
 <button onClick={resetDefaults} className="nb" style={{fontSize:10,padding:"10px 0",color:"#f87171",fontWeight:700}}>↺ Reset defaults</button>
 </div>
 </div>
-</div></div>}
+</div></div>})()}
 </div></div>;}
 
 /* ═══ SUB COMPONENTS ═══ */

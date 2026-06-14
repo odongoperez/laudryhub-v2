@@ -1,4 +1,4 @@
-const VERSION = "v14-grace-dynamic-spinners-chart";
+const VERSION = "v15-settings-cleanup";
 const STATIC_CACHE = `laundryhub-static-${VERSION}`;
 const RUNTIME_CACHE = `laundryhub-runtime-${VERSION}`;
 
