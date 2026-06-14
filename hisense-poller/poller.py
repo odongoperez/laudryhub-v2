@@ -97,7 +97,32 @@ def init_firebase() -> Any:
         "machine": db.reference("machine"),
         "notifications": db.reference("notifications"),
         "history": db.reference("history"),
+        "config": db.reference("config"),
     }
+
+
+def get_grace_seconds(refs: dict) -> int:
+    """Read the admin-configured grace period (in min) from /config/gracePoweroffMin
+    on every call. Falls back to the env-var default if config is missing.
+    Cached for 30s to avoid excessive reads."""
+    global _GRACE_CACHE, _GRACE_CACHE_AT
+    now = time.time()
+    if now - _GRACE_CACHE_AT < 30:
+        return _GRACE_CACHE
+    try:
+        v = refs["config"].child("gracePoweroffMin").get()
+        if v is not None and int(v) > 0:
+            _GRACE_CACHE = int(v) * 60
+        else:
+            _GRACE_CACHE = GRACE_SECONDS
+    except Exception:
+        _GRACE_CACHE = GRACE_SECONDS
+    _GRACE_CACHE_AT = now
+    return _GRACE_CACHE
+
+
+_GRACE_CACHE = 300  # 5 min default
+_GRACE_CACHE_AT = 0.0
 
 
 def cut_relay(refs: dict, reason: str, note: str) -> None:
@@ -210,7 +235,10 @@ def apply_control_logic(refs: dict, state: dict, memo: dict) -> None:
     #   - ended flag from Hisense, OR
     #   - we *were* active (running or paused), now neither and not ended-yet
     #     (machine went back to idle/off). Pure pause does NOT trigger this.
-    if GRACE_SECONDS > 0 and not memo.get("grace_until"):
+    # Read admin-configured grace period (falls back to env default if unset).
+    grace_seconds = get_grace_seconds(refs)
+
+    if grace_seconds > 0 and not memo.get("grace_until"):
         if (ended or (was_active and not running and not paused)) and not memo.get("history_logged"):
             # Write a history record with final consumption snapshot.
             machine_info = machine or {}
@@ -236,8 +264,8 @@ def apply_control_logic(refs: dict, state: dict, memo: dict) -> None:
             except Exception as e:
                 log.warning("failed to write history: %s", e)
         if relay_on and (ended or (was_active and not running and not paused)):
-            memo["grace_until"] = now + GRACE_SECONDS * 1000
-            log.info("grace period started (%ds)", GRACE_SECONDS)
+            memo["grace_until"] = now + grace_seconds * 1000
+            log.info("grace period started (%ds)", grace_seconds)
 
     # If the cycle restarts (running again), cancel any pending grace.
     if running and memo.get("grace_until"):
@@ -247,7 +275,7 @@ def apply_control_logic(refs: dict, state: dict, memo: dict) -> None:
     # Apply grace cut
     if memo.get("grace_until") and now >= memo["grace_until"]:
         cut_relay(refs, "post_wash_grace",
-                  f"Cut relay {GRACE_SECONDS // 60}m after wash ended")
+                  f"Cut relay {grace_seconds // 60}m after wash ended")
         memo["grace_until"] = 0
         memo["was_active"] = False
         memo["peak_water"] = 0
