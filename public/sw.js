@@ -1,4 +1,4 @@
-const VERSION = "v22-section-toggles-task-visibility";
+const VERSION = "v23-keyboard-fix-more-fonts-themes";
 const STATIC_CACHE = `laundryhub-static-${VERSION}`;
 const RUNTIME_CACHE = `laundryhub-runtime-${VERSION}`;
 

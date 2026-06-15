@@ -13,12 +13,28 @@ const FONTS={
   "Quicksand":{w:"400;500;600;700",label:"Quicksand · soft round"},
   "DM Sans":{w:"400;500;700;900",label:"DM Sans · clean editorial"},
   "Outfit":{w:"400;500;600;700;800;900",label:"Outfit · contemporary"},
+  "Poppins":{w:"400;500;600;700;800",label:"Poppins · classic geometric"},
+  "Manrope":{w:"400;500;600;700;800",label:"Manrope · refined neutral"},
+  "Lexend":{w:"400;500;600;700;800",label:"Lexend · highly readable"},
+  "Comfortaa":{w:"400;500;600;700",label:"Comfortaa · airy circular"},
+  "IBM Plex Sans":{w:"400;500;600;700",label:"IBM Plex · understated"},
+  "Sora":{w:"400;500;600;700;800",label:"Sora · futuristic"},
+  "Rubik":{w:"400;500;600;700;800;900",label:"Rubik · friendly bold"},
+  "Karla":{w:"400;500;600;700;800",label:"Karla · low-contrast warm"},
+  "Mulish":{w:"400;500;600;700;800;900",label:"Mulish · classic grotesque"},
+  "Onest":{w:"400;500;600;700;800;900",label:"Onest · neutral modern"},
+  "Figtree":{w:"400;500;600;700;800",label:"Figtree · approachable"},
+  "Albert Sans":{w:"400;500;600;700;800",label:"Albert · adaptable sans"},
+  "JetBrains Mono":{w:"400;500;700",label:"JetBrains Mono · code style"},
 };
 const THEME_MODES=[
-  {k:"neumo",label:"Neumorphic",desc:"Soft monochrome shadows (current)"},
+  {k:"neumo",label:"Neumorphic",desc:"Soft monochrome shadows (default)"},
   {k:"glass",label:"Glass",desc:"Frosted translucent cards with blur"},
   {k:"flat",label:"Flat",desc:"Sharp borders, no shadows"},
   {k:"playful",label:"Playful",desc:"Big rounded cards, bold accents"},
+  {k:"minimal",label:"Minimal",desc:"Tight borders, low contrast, lots of white space"},
+  {k:"retro",label:"Retro",desc:"Terminal-style monospace + sharp edges"},
+  {k:"elegant",label:"Elegant",desc:"Subtle gradients, refined shadows, premium feel"},
 ];
 const DENSITIES=[{k:"compact",l:"Compact"},{k:"comfy",l:"Comfy"},{k:"spacious",l:"Spacious"}];
 const RADIUSES=[{k:"sharp",l:"Sharp"},{k:"soft",l:"Soft"},{k:"pill",l:"Pill"}];
@@ -159,6 +175,41 @@ function GS({p,rm,font,themeMode,density,radius}){
       .ni{background:${bg};border:2px solid ${p}44;box-shadow:inset 0 -2px 0 ${p}33}
       .ni:focus{border-color:${p}}
     `,
+    minimal:`
+      body{background:#16192a}
+      .nm{background:#1c2033;border:1px solid #252a3e;box-shadow:none;padding:${D.cardPad+4}px}
+      .nm-in{background:#16192a;border:1px solid #252a3e;box-shadow:none}
+      .nb{background:transparent;border:1px solid #353b54;box-shadow:none;font-weight:500;color:#c8cdd8}
+      .nb:hover{background:#1f2438;border-color:#465078}
+      .nb:active{background:#161a2c;transform:none}
+      .ni{background:transparent;border:1px solid #353b54;box-shadow:none}
+      .ni:focus{outline:none;border-color:${p}}
+      .sec{font-weight:600;letter-spacing:0}
+    `,
+    retro:`
+      body{background:#0c0f17;font-family:'JetBrains Mono',monospace}
+      *{font-family:'JetBrains Mono',monospace!important}
+      .nm{background:#0c0f17;border:1px dashed ${p}55;box-shadow:none;border-radius:2px!important}
+      .nm-in{background:rgba(0,0,0,.35);border:1px solid ${p}44;border-radius:2px!important;box-shadow:none}
+      .nb{background:#0c0f17;border:1px solid ${p};color:${p};box-shadow:none;border-radius:2px!important;text-transform:uppercase;letter-spacing:1px;font-size:11px}
+      .nb:hover{background:${p}22}
+      .nb:active{background:${p}44;transform:none}
+      .ni{background:#0c0f17;border:1px solid ${p}66;border-radius:2px!important;color:${p};caret-color:${p}}
+      .ni:focus{outline:none;border-color:${p};box-shadow:0 0 0 1px ${p}}
+      .sec{text-transform:uppercase;letter-spacing:2px;color:${p}}
+      .M{color:${p}}
+    `,
+    elegant:`
+      body{background:linear-gradient(180deg, #14172a 0%, ${bg} 100%)}
+      .nm{background:linear-gradient(180deg, rgba(255,255,255,.03), transparent);border:1px solid rgba(255,255,255,.06);box-shadow:0 12px 32px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.04)}
+      .nm-in{background:rgba(0,0,0,.18);border:1px solid rgba(255,255,255,.04);box-shadow:inset 0 1px 0 rgba(255,255,255,.03)}
+      .nb{background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(0,0,0,.15));border:1px solid rgba(255,255,255,.08);box-shadow:0 1px 2px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.06);font-weight:500;letter-spacing:.3px}
+      .nb:hover{border-color:rgba(255,255,255,.16)}
+      .nb:active{background:rgba(0,0,0,.25);transform:scale(.99)}
+      .ni{background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.06);box-shadow:inset 0 1px 1px rgba(0,0,0,.3)}
+      .ni:focus{outline:none;border-color:${p}88}
+      .sec{font-weight:600;letter-spacing:.3px}
+    `,
   }[themeMode||"neumo"];
 
   return<style dangerouslySetInnerHTML={{__html:`@import url('https://fonts.googleapis.com/css2?family=${useFont.replace(/ /g,"+")}:wght@${useFontWeights}&family=JetBrains+Mono:wght@400;500&display=swap');@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}@keyframes si{from{transform:translateX(60px);opacity:0}to{transform:translateX(0);opacity:1}}@keyframes fu{from{transform:translateY(14px);opacity:0}to{transform:translateY(0);opacity:1}}@keyframes pu{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.85)}}@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}@keyframes wv{0%,100%{transform:scaleY(.4)}50%{transform:scaleY(1)}}@keyframes rise{0%{transform:translateY(0) scale(1);opacity:.85}70%{opacity:.5}100%{transform:translateY(-130%) scale(.4);opacity:0}}@keyframes rp{0%{box-shadow:0 0 0 0 ${p}44}100%{box-shadow:0 0 0 18px ${p}00}}@keyframes gl{0%,100%{opacity:.7}50%{opacity:1}}@keyframes bk{0%,100%{opacity:1}50%{opacity:0}}*{box-sizing:border-box;margin:0;padding:0}html,body{font-family:'${useFont}',sans-serif;background:${bg};color:#c8cdd8;overflow-x:hidden}input:focus,button:focus{outline:none}button,input,select,textarea{font-family:'${useFont}',sans-serif;-webkit-appearance:none}::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:#33384d;border-radius:4px}.nm{border-radius:${R.card}px;padding:${D.cardPad}px;color:#c8cdd8}.nm-in{border-radius:${R.input}px;padding:${D.cardPadIn}px;color:#c8cdd8}.nb{padding:${D.btnPad};border-radius:${R.btn}px;cursor:pointer;font-weight:700;font-size:13px;color:#c8cdd8;transition:all .15s;-webkit-tap-highlight-color:transparent}.nb-p{color:#fff}.nb-p:active{box-shadow:inset 3px 3px 6px #0004;transform:scale(.98)}.ni{padding:${D.inputPad};border-radius:${R.input}px;font-size:13px;width:100%;color:#c8cdd8}.ni:focus{outline:2px solid ${p}44;outline-offset:1px}.ni::placeholder{color:#555b6e}.np{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;font-size:10px;font-weight:700;box-shadow:2px 2px 5px ${ds},-2px -2px 5px ${ls}}.ns{border-radius:${R.input}px;padding:${D.cardPadIn}px;box-shadow:4px 4px 10px ${ds},-4px -4px 10px ${ls}}.av{border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:3px 3px 6px ${ds},-3px -3px 6px ${ls}}.M{font-family:'JetBrains Mono',monospace}.sec{font-size:${D.sec}px;font-weight:800;color:#e2e6ef;margin-bottom:14px;letter-spacing:-.3px;display:flex;align-items:center;gap:8px}.sec-ico{font-size:${D.sec+2}px}${modeCSS}.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}.g4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px}@media(max-width:440px){.g3,.g4{grid-template-columns:1fr 1fr}}.row{display:flex;align-items:center;gap:8px}.sb{display:flex;justify-content:space-between;align-items:center}.wrap{display:flex;flex-wrap:wrap;gap:6px}.tog{width:42px;height:22px;border-radius:11px;cursor:pointer;position:relative;box-shadow:inset 3px 3px 5px ${ds},inset -3px -3px 5px ${ls};transition:background .3s}.tog-k{width:16px;height:16px;border-radius:50%;background:#e2e6ef;position:absolute;top:3px;transition:left .25s;box-shadow:2px 2px 4px ${ds}}.chat-wrap{position:fixed;inset:0;z-index:9998;display:flex;align-items:center;justify-content:center;padding:14px}.chat-backdrop{position:absolute;inset:0;background:#000a;backdrop-filter:blur(4px)}.chat-card{position:relative;width:100%;max-width:820px;height:80vh;max-height:640px;display:flex;background:${bg};border-radius:20px;box-shadow:10px 10px 26px ${ds},-10px -10px 26px ${ls};overflow:hidden;animation:fu .2s ease}.chat-sb{width:260px;flex-shrink:0;display:flex;flex-direction:column;background:${bg};border-right:1px solid ${ls};position:relative;z-index:2}.chat-sb-head{display:flex;align-items:center;justify-content:space-between;padding:14px 14px;border-bottom:1px solid ${ls}}.chat-contacts{flex:1;overflow-y:auto;padding:8px}.chat-contact{display:flex;gap:10px;align-items:center;width:100%;padding:9px 10px;border:none;background:${bg};cursor:pointer;border-radius:12px;margin-bottom:3px;color:#c8cdd8;font-family:'Nunito',sans-serif;transition:background .15s;text-align:left}.chat-contact:hover{background:#242a3e}.chat-main{flex:1;display:flex;flex-direction:column;min-width:0}.chat-header{display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid ${ls};background:${bg}}.chat-menu{display:none;background:${bg};border:none;color:#c8cdd8;cursor:pointer;font-size:18px;padding:6px 10px;border-radius:8px}.chat-x{background:${bg};border:none;color:#8890a4;cursor:pointer;font-size:14px;padding:6px 10px;border-radius:8px;font-weight:700}.chat-x:hover{color:#e2e6ef}.chat-body{flex:1;overflow-y:auto;padding:16px 14px;display:flex;flex-direction:column;gap:1px}.chat-daysep{text-align:center;margin:14px 0 8px}.chat-daysep span{display:inline-block;background:${ls};color:#8890a4;font-size:10px;font-weight:700;padding:3px 11px;border-radius:10px}.chat-row{display:flex;gap:8px;align-items:flex-end}.chat-row.mine{flex-direction:row-reverse}.chat-row.grp{margin-top:10px}.chat-av{flex-shrink:0}.chat-bubble-wrap{max-width:72%;display:flex;flex-direction:column;position:relative}.chat-actions{display:none;position:absolute;top:-10px;gap:2px;background:${ls};padding:2px 4px;border-radius:8px;box-shadow:2px 2px 6px ${ds};z-index:1}.chat-row.mine .chat-actions{right:0}.chat-row.other .chat-actions{left:0}.chat-row:hover .chat-actions,.chat-actions.force{display:flex}@media(hover:none){.chat-actions{display:flex!important;position:static;background:transparent;box-shadow:none;padding:0;margin-top:2px;opacity:.6}}.chat-action-btn{background:transparent;border:none;color:#c8cdd8;cursor:pointer;font-size:12px;padding:3px 6px;border-radius:4px;font-weight:700}.chat-action-btn:hover{background:${bg};color:#fff}.chat-action-btn.del:hover{color:#f87171}.chat-edited{font-size:9px;color:#555b6e;margin-left:6px;font-style:italic}.chat-edit-row{display:flex;gap:6px;align-items:center;margin-top:2px}.chat-edit-input{flex:1;font-size:13px;padding:8px 12px;border-radius:16px}.chat-row.mine .chat-bubble-wrap{align-items:flex-end}.chat-sender{font-size:10px;color:#555b6e;margin-bottom:4px;font-weight:600;padding:0 4px}.chat-b{padding:9px 13px;border-radius:16px;font-size:13px;line-height:1.35;word-wrap:break-word;white-space:pre-wrap;max-width:100%}.chat-row.mine .chat-b{border-bottom-right-radius:4px}.chat-row.other .chat-b{border-bottom-left-radius:4px}.chat-empty{text-align:center;padding:48px 20px;color:#555b6e;margin:auto}.chat-input-row{display:flex;gap:8px;padding:10px 14px;border-top:1px solid ${ls};align-items:center}.chat-input{flex:1;border-radius:22px;padding:11px 16px;font-size:13px}.chat-send{width:44px;height:44px;border-radius:22px;padding:0;font-size:16px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;border:none;cursor:pointer;transition:opacity .15s}.chat-send:disabled{cursor:not-allowed}.chat-x-desktop{display:block}@media(max-width:720px){.chat-wrap{padding:0}.chat-card{max-width:none;height:100vh;max-height:none;border-radius:0}.chat-sb{position:absolute;top:0;bottom:0;left:0;width:280px;transform:translateX(-100%);transition:transform .25s;z-index:10;box-shadow:4px 0 14px ${ds};border-right:none}.chat-sb.open{transform:translateX(0)}.chat-menu{display:block}.chat-x-desktop{display:none}.chat-bubble-wrap{max-width:80%}}${rm?"*,*::before,*::after{animation:none!important;transition:none!important}":""}`}}/>;}
@@ -202,6 +253,12 @@ function SpinIcon({style,c,paused,sz}){
 }
 function Wash({on,prog,c,sz=130,paused,grace,spinnerStyle}){const i=sz-22;const cx=grace?"#fbbf24":(paused?"#f87171":c);const effProg=grace?1:prog;const active=on&&!grace;return<div style={{width:sz,height:sz,borderRadius:"50%",background:`conic-gradient(${cx} ${effProg*360}deg,${bg} ${effProg*360}deg)`,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:(active||grace)?`0 0 30px ${cx}33,6px 6px 14px ${ds},-6px -6px 14px ${ls}`:`6px 6px 14px ${ds},-6px -6px 14px ${ls}`,animation:active&&!paused?"rp 2s infinite":"none",transition:"background .3s"}}><div style={{width:i,height:i,borderRadius:"50%",background:bg,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",boxShadow:`inset 4px 4px 8px ${ds},inset -4px -4px 8px ${ls}`}}>{grace?<div style={{fontSize:sz*.22,color:"#fbbf24"}}>✓</div>:on?<SpinIcon style={spinnerStyle||"drop"} c={c} paused={paused} sz={sz}/>:<span style={{fontSize:sz*.16,opacity:.3}}>⏻</span>}<div className="M" style={{fontSize:grace?12:(paused?12:10),color:grace?"#fbbf24":(paused?"#f87171":"#8890a4"),marginTop:3,fontWeight:(grace||paused)?800:400,letterSpacing:(grace||paused)?.5:0}}>{grace?"DONE":on?`${Math.round(prog*100)}%`:"IDLE"}</div></div></div>;}
 function Tog({on,onChange,color}){return<div className="tog" onClick={onChange} style={{background:on?color||"#6C9BCF":bg}}><div className="tog-k" style={{left:on?23:3}}/></div>;}
+/* Settings helpers — MUST be at module scope so React doesn't tear down inputs
+   on every parent re-render (the parent re-renders every second due to the
+   admin clock interval, which previously caused the on-screen keyboard to
+   close as soon as you typed a character). */
+function SH({i,t,children}){return<div style={{margin:"6px 0 10px"}}><div style={{fontSize:10,color:"#8890a4",fontWeight:800,letterSpacing:1.5,marginBottom:8,paddingBottom:6,borderBottom:`1px solid ${ls}`}}>{i} {t}</div>{children}</div>;}
+function TR({t,d,on,onChange,color}){return<div className="sb" style={{padding:"8px 0"}}><div style={{flex:1}}><div style={{fontSize:12,fontWeight:700,color:"#e2e6ef"}}>{t}</div><div style={{fontSize:10,color:"#555b6e",marginTop:1}}>{d}</div></div><Tog on={on} onChange={onChange} color={color}/></div>;}
 function Modal({children,onClose}){useBackToClose(true,onClose);return<div style={{position:"fixed",inset:0,zIndex:9998,background:"#000b",display:"flex",alignItems:"center",justifyContent:"center",padding:12}} onClick={onClose}><div className="nm" style={{width:"100%",maxWidth:400,padding:24,animation:"fu .25s ease",maxHeight:"88vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>{children}</div></div>;}
 function UserEspDot({esp}){const on=isOn(esp);return<div className="row" style={{gap:5}}><div style={{width:9,height:9,borderRadius:5,background:on?"#4ade80":"#f87171",animation:on?"gl 2s infinite":"bk 1s infinite"}}/><span style={{fontSize:12,fontWeight:700,color:on?"#4ade80":"#f87171"}}>{on?"On":"Off"}</span></div>;}
 function MntBanner(){return<div style={{background:"#f87171",color:"#fff",padding:"9px 14px",margin:"0 12px 10px",borderRadius:12,fontWeight:800,fontSize:12,textAlign:"center",letterSpacing:.3}}>🔧 MAINTENANCE MODE — Washing temporarily unavailable</div>;}
@@ -795,10 +852,7 @@ return<div className="nm"><div className="sec"><span className="sec-ico">🔌</s
 </div>})()}
 
 {/* Settings — admin full control. Reorganized into clear sections. */}
-{tab==="cfg"&&(()=>{
-const SH=({i,t,children})=><div style={{margin:"6px 0 10px"}}><div style={{fontSize:10,color:"#8890a4",fontWeight:800,letterSpacing:1.5,marginBottom:8,paddingBottom:6,borderBottom:`1px solid ${ls}`}}>{i} {t}</div>{children}</div>;
-const TR=({t,d,on,onChange,color})=><div className="sb" style={{padding:"8px 0"}}><div style={{flex:1}}><div style={{fontSize:12,fontWeight:700,color:"#e2e6ef"}}>{t}</div><div style={{fontSize:10,color:"#555b6e",marginTop:1}}>{d}</div></div><Tog on={on} onChange={onChange} color={color||cfg.primaryColor}/></div>;
-return<div className="nm"><div className="sec"><span className="sec-ico">⚙️</span>Settings</div><div style={{display:"grid",gap:6}}>
+{tab==="cfg"&&<div className="nm"><div className="sec"><span className="sec-ico">⚙️</span>Settings</div><div style={{display:"grid",gap:6}}>
 
 <SH i="🏷" t="BRANDING">
 <div className="g2" style={{gridTemplateColumns:"3fr 1fr",marginBottom:8}}><div><label style={{fontSize:11,color:"#555b6e",marginBottom:4,display:"block"}}>App name</label><input value={aN} onChange={e=>sAN(e.target.value)} className="ni"/></div><div><label style={{fontSize:11,color:"#555b6e",marginBottom:4,display:"block"}}>Emoji</label><input value={apEm} onChange={e=>sApEm(e.target.value)} maxLength={4} className="ni" style={{textAlign:"center",fontSize:16}}/></div></div>
@@ -815,14 +869,14 @@ return<div className="nm"><div className="sec"><span className="sec-ico">⚙️<
 <div style={{marginBottom:10}}><label style={{fontSize:11,color:"#555b6e",marginBottom:6,display:"block"}}>Color palette</label><div className="wrap">{THEMES.map(t=><button key={t.n} onClick={()=>applyTheme(t)} className="nb" style={{fontSize:10,padding:"6px 12px",display:"flex",alignItems:"center",gap:6,fontWeight:700}}><span style={{display:"inline-block",width:12,height:12,borderRadius:6,background:`linear-gradient(135deg,${t.p} 0 50%,${t.a} 50% 100%)`}}/>{t.n}</button>)}</div></div>
 <div className="g2" style={{marginBottom:10}}><div><label style={{fontSize:11,color:"#555b6e",marginBottom:4,display:"block"}}>Primary color</label><div className="row"><input type="color" value={cP} onChange={e=>sCP(e.target.value)} style={{width:34,height:30,border:"none",borderRadius:8,cursor:"pointer"}}/><input value={cP} onChange={e=>sCP(e.target.value)} className="ni" style={{fontSize:11}}/></div></div><div><label style={{fontSize:11,color:"#555b6e",marginBottom:4,display:"block"}}>Accent color</label><div className="row"><input type="color" value={cA} onChange={e=>sCA(e.target.value)} style={{width:34,height:30,border:"none",borderRadius:8,cursor:"pointer"}}/><input value={cA} onChange={e=>sCA(e.target.value)} className="ni" style={{fontSize:11}}/></div></div></div>
 <div><label style={{fontSize:11,color:"#555b6e",marginBottom:6,display:"block"}}>Wash spinner</label><div className="wrap">{[{k:"drum",l:"🌀 Drum",new:true},{k:"swirl",l:"💫 Swirl",new:true},{k:"bubbles",l:"🫧 Foam",new:true},{k:"droplet",l:"💧 Drop",new:true},{k:"drop",l:"💧 Classic"},{k:"pulse",l:"● Pulse"},{k:"ring",l:"◜ Ring"},{k:"dots",l:"••• Dots"},{k:"wave",l:"▊ Wave"}].map(s=><button key={s.k} onClick={()=>sSpinStyle(s.k)} className="nb" style={{fontSize:11,padding:"6px 11px",color:spinStyle===s.k?cfg.primaryColor:"#c8cdd8",fontWeight:spinStyle===s.k?800:600,position:"relative"}}>{s.l}{s.new&&<sup style={{color:"#fbbf24",fontSize:8,marginLeft:3,fontWeight:800}}>NEW</sup>}</button>)}</div><div style={{marginTop:8,display:"flex",justifyContent:"center",padding:"10px 0"}}><Wash on={true} prog={.65} c={cP} paused={false} grace={false} spinnerStyle={spinStyle} sz={80}/></div></div>
-<TR t="Reduce motion" d="Disable animations for accessibility" on={redMo} onChange={()=>sRedMo(!redMo)}/>
+<TR t="Reduce motion" d="Disable animations for accessibility" on={redMo} onChange={()=>sRedMo(!redMo)} color={cfg.primaryColor}/>
 </SH>
 
 <SH i="🌀" t="WASH BEHAVIOUR">
 <div className="g2" style={{marginBottom:8}}><div><label style={{fontSize:11,color:"#555b6e",marginBottom:4,display:"block"}}>Default wash (min) <span style={{color:"#8890a4"}}>Turn ON button</span></label><input type="number" value={defWash} onChange={e=>sDefWash(e.target.value)} className="ni" min="15" max="240"/></div><div><label style={{fontSize:11,color:"#555b6e",marginBottom:4,display:"block"}}>Powering-off (min) <span style={{color:"#8890a4"}}>after wash ends</span></label><input type="number" value={grace} onChange={e=>sGrace(e.target.value)} className="ni" min="1" max="30"/></div></div>
 <div><label style={{fontSize:11,color:"#555b6e",marginBottom:4,display:"block"}}>Reminder (min before end) <span style={{color:"#8890a4"}}>push notification</span></label><input type="number" value={aM} onChange={e=>sAM(e.target.value)} className="ni" min="1" max="15"/></div>
-<TR t="Confirm before force-stop" d="Ask before stopping a running wash" on={cStop} onChange={()=>sCStop(!cStop)}/>
-<TR t="Beep when wash finishes" d="Play a tone when machine frees" on={sFin} onChange={()=>sSFin(!sFin)}/>
+<TR t="Confirm before force-stop" d="Ask before stopping a running wash" on={cStop} onChange={()=>sCStop(!cStop)} color={cfg.primaryColor}/>
+<TR t="Beep when wash finishes" d="Play a tone when machine frees" on={sFin} onChange={()=>sSFin(!sFin)} color={cfg.primaryColor}/>
 </SH>
 
 <SH i="🗂" t="USER DASHBOARD LAYOUT">
@@ -859,8 +913,8 @@ return<><div style={{fontSize:11,color:"#8890a4",marginBottom:8,lineHeight:1.5}}
 </SH>
 
 <SH i="💬" t="FEATURES">
-<TR t="Enable chat" d="Users can message each other" on={chatEn} onChange={()=>sChatEn(!chatEn)}/>
-<TR t="24-hour time" d="Use 14:30 instead of 2:30 PM" on={t24} onChange={()=>sT24(!t24)}/>
+<TR t="Enable chat" d="Users can message each other" on={chatEn} onChange={()=>sChatEn(!chatEn)} color={cfg.primaryColor}/>
+<TR t="24-hour time" d="Use 14:30 instead of 2:30 PM" on={t24} onChange={()=>sT24(!t24)} color={cfg.primaryColor}/>
 <div style={{marginTop:8}}><label style={{fontSize:11,color:"#555b6e",marginBottom:4,display:"block"}}>Default emoji for new users</label><input value={defEm} onChange={e=>sDefEm(e.target.value)} maxLength={4} className="ni" style={{textAlign:"center",fontSize:16}}/></div>
 </SH>
 
@@ -885,7 +939,7 @@ return<><div style={{fontSize:11,color:"#8890a4",marginBottom:8,lineHeight:1.5}}
 <button onClick={resetDefaults} className="nb" style={{fontSize:10,padding:"10px 0",color:"#f87171",fontWeight:700}}>↺ Reset defaults</button>
 </div>
 </div>
-</div></div>})()}
+</div></div>}
 </div></div>;}
 
 /* ═══ SUB COMPONENTS ═══ */
