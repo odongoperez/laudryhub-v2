@@ -47,6 +47,11 @@ DEVICE_ID_FILTER = os.environ.get("HISENSE_DEVICE_ID", "").strip()
 POLL_SECONDS = max(8, int(os.environ.get("POLL_INTERVAL_SECONDS", "10") or "10"))
 GRACE_SECONDS = max(0, int(os.environ.get("GRACE_MINUTES", "5") or "5")) * 60
 IDLE_SECONDS = max(0, int(os.environ.get("IDLE_CUTOFF_MINUTES", "5") or "5")) * 60
+# POLLER_ID identifies this instance ("fly" on Fly.io, "pc" when running locally).
+# Both instances can run simultaneously — they coordinate via /config/activePoller
+# in Firebase. Only the one whose ID matches activePoller writes data; the other
+# stays in standby (still authenticates + polls so it's ready to take over).
+POLLER_ID = (os.environ.get("POLLER_ID") or "fly").strip().lower()
 
 logging.basicConfig(
     level=logging.INFO,
@@ -433,6 +438,7 @@ async def main() -> None:
     refs = init_firebase()
     api = ConnectLifeApi(username=USERNAME, password=PASSWORD)
 
+    log.info("=== Poller instance ID: '%s' ===", POLLER_ID)
     log.info("Authenticating with Connect Life (%s)", USERNAME)
     await api.authenticate()
     log.info(
@@ -465,27 +471,46 @@ async def main() -> None:
                     last_warn = time.time()
             else:
                 state = normalize_state(washer)
-                apply_control_logic(refs, state, memo)
-                state["graceUntil"] = int(memo.get("grace_until") or 0)
-                # Preserve admin-set mute flag across writes so emergency reset
-                # actually keeps the mirror logic disabled for its full window.
+
+                # Check who is the active poller — if it's not us, skip all writes.
+                # The "loser" still polls Hisense so it's warm and ready to take over
+                # the moment admin flips the switch back.
                 try:
-                    existing = refs["hisense"].get() or {}
-                    mu = int(existing.get("muteUntil") or 0)
-                    if mu > int(time.time() * 1000):
-                        state["muteUntil"] = mu
-                        state["mutedBy"] = existing.get("mutedBy")
+                    active = refs["config"].child("activePoller").get() or "fly"
                 except Exception:
-                    pass
-                refs["hisense"].set(state)
-                log.info(
-                    "state: running=%s paused=%s ended=%s remaining=%dm door=%s",
-                    state["running"], state["paused"], state["ended"],
-                    state["remainingMin"], state["doorLocked"],
-                )
-                raw = state.get("raw", {})
-                nonzero = {k: v for k, v in raw.items() if v not in (None, "", 0, "0", "null")}
-                log.info("raw (non-empty): %s", nonzero)
+                    active = "fly"
+                active = str(active).strip().lower()
+                am_active = (active == POLLER_ID)
+
+                if am_active:
+                    apply_control_logic(refs, state, memo)
+                    state["graceUntil"] = int(memo.get("grace_until") or 0)
+                    # Preserve admin-set mute flag across writes so emergency reset
+                    # actually keeps the mirror logic disabled for its full window.
+                    try:
+                        existing = refs["hisense"].get() or {}
+                        mu = int(existing.get("muteUntil") or 0)
+                        if mu > int(time.time() * 1000):
+                            state["muteUntil"] = mu
+                            state["mutedBy"] = existing.get("mutedBy")
+                    except Exception:
+                        pass
+                    state["pollerSource"] = POLLER_ID
+                    refs["hisense"].set(state)
+                    log.info(
+                        "[ACTIVE:%s] state: running=%s paused=%s ended=%s remaining=%dm door=%s",
+                        POLLER_ID, state["running"], state["paused"], state["ended"],
+                        state["remainingMin"], state["doorLocked"],
+                    )
+                    raw = state.get("raw", {})
+                    nonzero = {k: v for k, v in raw.items() if v not in (None, "", 0, "0", "null")}
+                    log.info("raw (non-empty): %s", nonzero)
+                else:
+                    log.info(
+                        "[STANDBY:%s] active poller is '%s' — skipping write. running=%s remaining=%dm",
+                        POLLER_ID, active, state["running"], state["remainingMin"],
+                    )
+
                 invalid_login_streak = 0
         except Exception as e:
             msg = str(e)

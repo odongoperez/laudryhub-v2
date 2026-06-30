@@ -13,6 +13,7 @@ primary_region = 'fra'
   GRACE_MINUTES = '5'
   IDLE_CUTOFF_MINUTES = '5'
   POLL_INTERVAL_SECONDS = '10'
+  POLLER_ID = 'fly'
 
 [[vm]]
   memory = '256mb'

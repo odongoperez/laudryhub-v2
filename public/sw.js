@@ -1,4 +1,4 @@
-const VERSION = "v23-keyboard-fix-more-fonts-themes";
+const VERSION = "v24-pc-poller-switch";
 const STATIC_CACHE = `laundryhub-static-${VERSION}`;
 const RUNTIME_CACHE = `laundryhub-runtime-${VERSION}`;
 

@@ -792,10 +792,28 @@ return<div className="nm"><div className="sb" style={{marginBottom:12}}><div cla
 {tab==="api"&&(()=>{
 const hsAge=hs&&hs.updatedAt?Math.round((Date.now()-hs.updatedAt)/1000):null;
 const hsOk=hsAge!==null&&hsAge<30;
+const activePoller=(cfg.activePoller||"fly").toLowerCase();
+const lastSource=hs?.pollerSource||"?";
+const setPoller=async(which)=>{if(!confirm(`Switch active poller to "${which.toUpperCase()}"?\n\nThe other poller will go to standby. Make sure the one you're switching to is actually running.`))return;try{await DB.setActivePoller(which);toast(`Active poller → ${which.toUpperCase()}`,"success")}catch(e){toast(`Save failed: ${e?.code||e?.message||"unknown"}`,"error")}};
 const hsState=hs&&hs.running?"Running":hs&&hs.paused?"Paused":hs&&hs.ended?"Ended":hs?"Idle":"—";
 const hsColor=hsOk?"#4ade80":(hsAge!==null&&hsAge<120)?"#fbbf24":"#f87171";
 const fmtAgo=s=>s==null?"—":s<60?`${s}s ago`:s<3600?`${Math.floor(s/60)}m ${s%60}s ago`:`${Math.floor(s/3600)}h ago`;
 return<div className="nm"><div className="sec"><span className="sec-ico">🔌</span>API & data pipeline</div>
+
+{/* Active poller switch — use PC instance when Fly.io is down. Both instances must be running;
+    only the one matching cfg.activePoller actually writes to Firebase. */}
+<div className="nm-in" style={{padding:"14px 16px",marginBottom:14,border:`1px solid ${cfg.primaryColor}33`}}>
+  <div className="sb" style={{marginBottom:10,alignItems:"baseline"}}>
+    <div><div style={{fontSize:10,color:"#555b6e",fontWeight:800,letterSpacing:1}}>🎛 ACTIVE POLLER</div><div className="M" style={{fontSize:15,fontWeight:800,color:cfg.primaryColor,marginTop:2}}>{activePoller==="pc"?"💻 PC (local)":"☁ Fly.io"}</div></div>
+    <div style={{textAlign:"right",fontSize:9,color:"#555b6e"}}>Last write by:<br/><span className="M" style={{color:lastSource===activePoller?"#4ade80":"#fbbf24",fontWeight:800,fontSize:11}}>{lastSource}</span></div>
+  </div>
+  <div className="g2" style={{gap:6}}>
+    <button onClick={()=>setPoller("fly")} disabled={activePoller==="fly"} className="nb" style={{padding:"10px 0",fontSize:12,fontWeight:800,color:activePoller==="fly"?"#4ade80":"#c8cdd8",border:activePoller==="fly"?"1px solid #4ade8055":undefined,cursor:activePoller==="fly"?"default":"pointer"}}>{activePoller==="fly"?"✓ ":""}☁ Fly.io</button>
+    <button onClick={()=>setPoller("pc")} disabled={activePoller==="pc"} className="nb" style={{padding:"10px 0",fontSize:12,fontWeight:800,color:activePoller==="pc"?"#4ade80":"#c8cdd8",border:activePoller==="pc"?"1px solid #4ade8055":undefined,cursor:activePoller==="pc"?"default":"pointer"}}>{activePoller==="pc"?"✓ ":""}💻 PC (local)</button>
+  </div>
+  <div style={{fontSize:10,color:"#555b6e",fontStyle:"italic",marginTop:10,lineHeight:1.5}}>{activePoller==="pc"?"⚠ PC poller must be running on your machine — double-click hisense-poller/start-pc-poller.bat":"☁ Fly.io poller handles things automatically. Switch to PC if Fly is down."}</div>
+</div>
+
 <div className="nm-in" style={{padding:"12px 14px",marginBottom:12}}>
   <div className="sb" style={{alignItems:"center",marginBottom:10}}>
     <div className="row" style={{gap:8}}><span style={{fontSize:15}}>🌀</span><div><div style={{fontSize:10,color:"#555b6e",fontWeight:700,letterSpacing:.5}}>HISENSE CONNECT LIFE (POLLER)</div><div className="M" style={{fontSize:14,fontWeight:800,color:hsColor}}>{hsOk?"Connected":hsAge!==null?"Stale":"No data"}</div></div></div>

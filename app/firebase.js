@@ -88,6 +88,13 @@ const DB = {
     await update(ref(db, "hisense"), { muteUntil: 0, mutedBy: null });
   },
 
+  // ── Active poller switch ─────────────────────────────────────
+  // /config/activePoller = "fly" | "pc". Both poller instances read this every
+  // cycle and only the matching one writes to Firebase.
+  async setActivePoller(which) {
+    await update(ref(db, "config"), { activePoller: which });
+  },
+
   // ── Hisense (written by hisense-poller/poller.py) ──
   onHisense(cb) { return onValue(ref(db, "hisense"), s => cb(s.exists() ? s.val() : null)); },
   onNotifications(cb, count = 20) {
