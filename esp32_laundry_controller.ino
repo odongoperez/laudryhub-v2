@@ -48,7 +48,7 @@
 #define WIFI_PASSWORD  "Stechbahn1801!"
 #define FIREBASE_URL   "https://laundryhub-4e35b-default-rtdb.europe-west1.firebasedatabase.app"
 #define RELAY_PIN       2
-#define RELAY_ACTIVE_LOW true
+#define RELAY_ACTIVE_LOW false
 
 // Self-heal thresholds (milliseconds)
 const unsigned long WIFI_DEAD_REBOOT_MS    = 5UL * 60UL * 1000UL;   // 5 min
@@ -205,7 +205,11 @@ void loop() {
     Serial.println("[WIFI] disconnected — attempting reconnect");
     WiFi.disconnect();
     delay(500);
-    WiFi.reconnect();
+    // WiFi.reconnect() only asks the driver to resume the last association and
+    // is unreliable on the ESP32 Arduino core after a real drop (e.g. AP-side
+    // deauth or a repeater roam) — it can silently stay disconnected forever.
+    // WiFi.begin() forces a full reconnection cycle and is the documented fix.
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
     delay(1000);
     if (WiFi.status() != WL_CONNECTED) {
       // If we've been offline > WIFI_DEAD_REBOOT_MS, hard reboot
