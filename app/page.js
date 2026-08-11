@@ -9,7 +9,7 @@ const THEMES=[{n:"Ocean",p:"#6C9BCF",a:"#E8A87C"},{n:"Sunset",p:"#F59E0B",a:"#EF
 const ADMIN_PW="2011";
 const EMO=["😊","😎","🦊","🐱","🐶","🦁","🐸","🦄","🚀","🎨"];
 const bg="var(--lh-bg)",ls="var(--lh-border)";
-function isOn(e){return e&&e.lastSeen&&(Date.now()-e.lastSeen)<20000}
+function isOn(e){return e&&e.lastSeen&&(Date.now()-e.lastSeen)<40000}
 /* Mobile back button closes overlays (chat/help/profile) instead of navigating away from the app.
    Pushes a history entry on open; popstate fires when user presses back → closes via onClose.
    IMPORTANT: only re-run on `open` change. `onClose` lives in a ref so parent re-renders don't
