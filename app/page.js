@@ -2,7 +2,7 @@
 import{useState,useEffect,useCallback,useRef,Fragment}from"react";
 import DB from"./firebase";
 
-const DEF={primaryColor:"#6C9BCF",accentColor:"#E8A87C",appName:"LaundryHub",appEmoji:"🫧",tagline:"Smart laundry control",alertMinutesBefore:5,chatEnabled:true,maintenance:false,reduceMotion:false,defaultUserEmoji:"😊",confirmStop:true,autoLogoutMin:0,time24:true,soundOnFinish:true,gracePoweroffMin:5,defaultWashMinutes:90,spinnerStyle:"drum",textColor:"#e2e6ef",uiScale:1,dashboardOrder:["ready","schedule","cleaning","washes","housemates"],dashboardSectionsEnabled:{},cleaningDoneVisibility:"everyone",cleaningTaskVisibility:"everyone"};
+const DEF={primaryColor:"#6C9BCF",accentColor:"#E8A87C",appName:"LaundryHub",appEmoji:"🫧",tagline:"Smart laundry control",alertMinutesBefore:5,chatEnabled:true,maintenance:false,reduceMotion:false,defaultUserEmoji:"😊",confirmStop:true,autoLogoutMin:0,time24:true,soundOnFinish:true,gracePoweroffMin:5,defaultWashMinutes:90,spinnerStyle:"drum",textColor:"#e2e6ef",uiScale:1,manualMode:false,dashboardSectionsEnabled:{},cleaningDoneVisibility:"everyone",cleaningTaskVisibility:"everyone"};
 
 /* ── Theme catalog — one flat design (see GS()), just an accent color palette to pick from ── */
 const THEMES=[{n:"Ocean",p:"#6C9BCF",a:"#E8A87C"},{n:"Sunset",p:"#F59E0B",a:"#EF4444"},{n:"Forest",p:"#10B981",a:"#84CC16"},{n:"Midnight",p:"#8B5CF6",a:"#EC4899"},{n:"Rose",p:"#F472B6",a:"#FCD34D"},{n:"Slate",p:"#64748B",a:"#06B6D4"}];
@@ -45,14 +45,8 @@ function rssiInfo(r){
 }
 function fmtDT(ms,t24){const d=new Date(ms);return d.toLocaleString(undefined,{hour12:!t24,year:"numeric",month:"short",day:"2-digit",hour:"2-digit",minute:"2-digit"})}
 function fmtT(ms,t24){return new Date(ms).toLocaleTimeString(undefined,{hour12:!t24,hour:"2-digit",minute:"2-digit"})}
-/* Canonical default for dashboard section order. Used as the merge target so users
-   migrating from an older config don't lose new sections (ready, schedule). */
+/* Canonical list of optional features admin can hide via dashboardSectionsEnabled. */
 const SECTION_DEFAULT_ORDER=["ready","schedule","cleaning","washes","housemates"];
-function mergeDashOrder(saved){
-  const arr=Array.isArray(saved)?[...saved.filter(k=>SECTION_DEFAULT_ORDER.includes(k))]:[];
-  SECTION_DEFAULT_ORDER.forEach((k,i)=>{if(!arr.includes(k))arr.splice(Math.min(i,arr.length),0,k)});
-  return arr;
-}
 /* True end-time of a schedule entry, supporting both new-style (endTime) and old-style (minutes). */
 function scheduleEndMs(s){
   if(!s)return 0;
@@ -430,7 +424,7 @@ function BottomNav({view,setView,unread,c}){
   </div>;
 }
 function UserDash({user:init,cfg,onOut,toast}){
-const[user,sU]=useState(init);const[mac,sM]=useState({running:false});const[sch,sSch]=useState([]);const[users,sUs]=useState([]);const[esp,sE]=useState(null);const[sd,sSd]=useState("");const[st,sSt]=useState("");const[se,sSe]=useState("");const[now,sN]=useState(Date.now());const[view,sView]=useState("home");const[showHelp,sShowHelp]=useState(false);const[editSch,sES]=useState(null);const[chatTo,sChatTo]=useState("all");const[msgs,sMs]=useState([]);const[hist,sH]=useState([]);const[hs,sHs]=useState(null);const[roster,sRoster]=useState(null);const[completions,sComp]=useState({});const af=useRef(false);const prev=useRef(false);const warned=useRef(false);const touchStart=useRef(null);const dragging=useRef(false);const contentRef=useRef(null);const[slideDir,sSlideDir]=useState(null);
+const[user,sU]=useState(init);const[mac,sM]=useState({running:false});const[sch,sSch]=useState([]);const[users,sUs]=useState([]);const[esp,sE]=useState(null);const[sd,sSd]=useState("");const[st,sSt]=useState("");const[se,sSe]=useState("");const[manDur,sManDur]=useState(cfg.defaultWashMinutes||90);const[now,sN]=useState(Date.now());const[view,sView]=useState("home");const[showHelp,sShowHelp]=useState(false);const[editSch,sES]=useState(null);const[chatTo,sChatTo]=useState("all");const[msgs,sMs]=useState([]);const[hist,sH]=useState([]);const[hs,sHs]=useState(null);const[roster,sRoster]=useState(null);const[completions,sComp]=useState({});const af=useRef(false);const prev=useRef(false);const warned=useRef(false);const touchStart=useRef(null);const dragging=useRef(false);const contentRef=useRef(null);const[slideDir,sSlideDir]=useState(null);
 /* Swipe left/right anywhere in the content area to move between tabs, in the same
    order as the bottom nav. The pane tracks the finger live during the drag (direct
    style writes on contentRef, not React state, so it stays smooth at 60fps), then
@@ -497,17 +491,12 @@ if(now>=end-(cfg.alertMinutesBefore||5)*60000&&now<end&&!af.current){af.current=
 if(now>=end&&age>=60000){console.log("[auto-stop] firing",{age,dur,end,now});DB.setMachine({running:false,lastUser:mac.userName,lastCycle:mac.cycleName,finishedAt:Date.now()});try{DB.addWashRecord({id:Date.now().toString(),userId:mac.userId,userName:mac.userName,cycleName:mac.cycleName,startTime:mac.startTime,finishedAt:Date.now(),durationMs:mac.durationMs})}catch{}toast("Wash complete!","success");sendPush(`${cfg.appName||"LaundryHub"} — Wash complete!`,"Your laundry is ready.");af.current=false}},[now,mac,user.id,cfg,toast]);
 
 const on=isOn(esp);const my=mac?.running&&mac.userId===user.id;const busy=mac?.running&&mac.userId!==user.id;
-const hsFresh=hs&&hs.updatedAt&&(Date.now()-hs.updatedAt<45000);const useHs=hsFresh&&(hs.running||hs.paused)&&typeof hs.remainingMin==="number";
+/* hsFresh is forced false in manual mode — admin has decided ConnectLife isn't
+   trustworthy enough to drive the UI, so nothing downstream (useHs, hsSaysDone,
+   phase/paused display) should touch it, regardless of what it reports. */
+const hsFresh=!cfg.manualMode&&hs&&hs.updatedAt&&(Date.now()-hs.updatedAt<45000);const useHs=hsFresh&&(hs.running||hs.paused)&&typeof hs.remainingMin==="number";
 const hsSaysDone=hsFresh&&!hs.running&&!hs.paused;
-/* Manual override detection — when ConnectLife is stale OR the wash has overrun
-   its declared duration by a wide margin. Users get access to a "Mark as free"
-   action only when one of these is true, so the button doesn't tempt people to
-   force-stop healthy washes. */
-const hsAgeSec=hs&&hs.updatedAt?Math.round((Date.now()-hs.updatedAt)/1000):null;
-const hsStale=hs===null||(hsAgeSec!==null&&hsAgeSec>120);
-const washOverrun=mac?.running&&mac?.startTime&&mac?.durationMs&&(Date.now()-Number(mac.startTime))>(Number(mac.durationMs)*1.5);
-const manualOverrideAvailable=mac?.running&&(hsStale||washOverrun);
-const graceLeft=hs&&hs.graceUntil?Math.max(0,hs.graceUntil-now):0;const inGrace=graceLeft>0;const graceM=Math.floor(graceLeft/60000);const graceS=Math.floor((graceLeft%60000)/1000);
+const graceLeft=!cfg.manualMode&&hs&&hs.graceUntil?Math.max(0,hs.graceUntil-now):0;const inGrace=graceLeft>0;const graceM=Math.floor(graceLeft/60000);const graceS=Math.floor((graceLeft%60000)/1000);
 const effRunning=!hsSaysDone&&(mac?.running||useHs);
 const prog=mac?.running?Math.min(1,(now-mac.startTime)/mac.durationMs):0;
 const rm=useHs?hs.remainingMin*60000:(mac?.running?Math.max(0,(mac.startTime+mac.durationMs)-now):0);
@@ -540,7 +529,11 @@ const sections={};
 /* Ready to wash — only renders when machine is idle */
 sections.ready=!(mac?.running||useHs)?<div className="nm" style={{marginBottom:16,padding:22,opacity:on&&!blocked?1:.5,transition:"opacity .2s"}}>
 <div className="sec">Ready to wash</div>
-<button onClick={start} className="nb nb-p" style={{width:"100%",padding:"16px 0",fontSize:16,fontWeight:800,background:on&&!blocked?cfg.primaryColor:"var(--lh-text3)",borderRadius:14,letterSpacing:.3}}>{!on?"Machine offline":blocked?`Reserved by ${blocked.userName}`:(()=>{const m=cfg.defaultWashMinutes||90;const h=Math.floor(m/60);const mm=m%60;return`Start wash — ${h>0?h+"h ":""}${mm>0?mm+"m":""}`.trim()})()}</button>
+{cfg.manualMode?<>
+<div style={{display:"flex",gap:8,alignItems:"center",marginBottom:12}}><input type="number" min="1" max="240" aria-label="Minutes" value={manDur} onChange={e=>sManDur(e.target.value)} className="ni" style={{width:90,textAlign:"center",fontWeight:700}}/><span style={{fontSize:12,color:"var(--lh-text2)"}}>minutes</span></div>
+<button onClick={()=>go(Math.max(1,+manDur||90),"Wash")} className="nb nb-p" style={{width:"100%",padding:"16px 0",fontSize:16,fontWeight:800,background:on&&!blocked?cfg.primaryColor:"var(--lh-text3)",borderRadius:14,letterSpacing:.3}}>{!on?"Machine offline":blocked?`Reserved by ${blocked.userName}`:`Start wash — ${Math.max(1,+manDur||90)}m`}</button>
+</>:
+<button onClick={start} className="nb nb-p" style={{width:"100%",padding:"16px 0",fontSize:16,fontWeight:800,background:on&&!blocked?cfg.primaryColor:"var(--lh-text3)",borderRadius:14,letterSpacing:.3}}>{!on?"Machine offline":blocked?`Reserved by ${blocked.userName}`:(()=>{const m=cfg.defaultWashMinutes||90;const h=Math.floor(m/60);const mm=m%60;return`Start wash — ${h>0?h+"h ":""}${mm>0?mm+"m":""}`.trim()})()}</button>}
 </div>:null;
 
 /* Schedule = booking form + Reservations list. Kept together as one logical section. */
@@ -586,11 +579,6 @@ const washHero=<div className="nm" style={{display:"flex",flexDirection:"column"
 </div>;
 
 /* Manual override banner — only when ConnectLife seems stuck or the wash overran. */
-const overrideBanner=manualOverrideAvailable&&<div className="nm" style={{padding:14,marginBottom:14,border:"1px solid #fbbf2433"}}>
-  <div style={{fontSize:13,fontWeight:800,color:"#fbbf24"}}>{hsStale?"Cloud sync delayed":"Wash overrun"}</div>
-  <div style={{fontSize:11,color:"var(--lh-text2)",marginTop:2,marginBottom:10,lineHeight:1.4}}>{hsStale?`No update from the washer for ${hsAgeSec?Math.floor(hsAgeSec/60)+"m":"a while"}. The machine may actually be free.`:`This wash has been running much longer than expected — it probably finished a while ago.`}</div>
-  <button onClick={async()=>{if(!(await askConfirm("Mark machine as free? Check it physically first.\n\nThis opens the power relay and clears the wash.")))return;try{await DB.emergencyReset({reason:"user_manual_override",muteMinutes:10});toast("Machine marked free","success")}catch{toast("Reset failed — try again","error")}}} className="nb" style={{width:"100%",padding:"10px 0",fontSize:12,fontWeight:800,color:"#fbbf24",border:"1px solid #fbbf2444"}}>Check & mark as free</button>
-</div>;
 
 /* Profile — inline, no modal */
 const profileTab=<><div className="nm" style={{padding:22,marginBottom:16}}>
@@ -602,7 +590,7 @@ const profileTab=<><div className="nm" style={{padding:22,marginBottom:16}}>
 <button onClick={onOut} className="nb" style={{width:"100%",padding:"11px 0",fontWeight:700,color:"#f87171"}}>Log out</button>
 </div></>;
 
-if(view==="home")return<>{overrideBanner}{washHero}{on2("ready")&&sections.ready}{on2("cleaning")&&cleaningCompact}</>;
+if(view==="home")return<>{washHero}{on2("ready")&&sections.ready}{on2("cleaning")&&cleaningCompact}</>;
 if(view==="schedule")return on2("schedule")?sections.schedule:<div className="nm" style={{padding:22,textAlign:"center",color:"var(--lh-text2)",fontSize:13}}>Scheduling is turned off.</div>;
 if(view==="activity")return<>{on2("cleaning")&&sections.cleaning}{on2("washes")&&sections.washes}{!on2("washes")&&!on2("cleaning")&&<div className="nm" style={{padding:22,textAlign:"center",color:"var(--lh-text2)",fontSize:13}}>No activity yet.</div>}</>;
 if(view==="profile")return<>{profileTab}{on2("housemates")&&sections.housemates}</>;
@@ -616,14 +604,14 @@ return null;
 /* ═══ ADMIN ═══ */
 function AdminDash({cfg,setCfg,onOut,toast}){
 const[users,sU]=useState([]);const[mac,sM]=useState({running:false});const[sch,sSch]=useState([]);const[esp,sE]=useState(null);const[hist,sH]=useState([]);const[msgs,sMs]=useState([]);const[nn,sNN]=useState("");const[np,sNP]=useState("");const[tab,sT]=useState("dash");
-const[cP,sCP]=useState(cfg.primaryColor);const[cA,sCA]=useState(cfg.accentColor);const[tCol,sTCol]=useState(cfg.textColor||"#e2e6ef");const[uiSc,sUiSc]=useState(cfg.uiScale||1);const[aN,sAN]=useState(cfg.appName);const[aM,sAM]=useState(cfg.alertMinutesBefore||5);const[chatEn,sChatEn]=useState(cfg.chatEnabled!==false);const[apEm,sApEm]=useState(cfg.appEmoji||"🫧");const[mntn,sMntn]=useState(!!cfg.maintenance);const[adPw,sAdPw]=useState("");const[tagln,sTagln]=useState(cfg.tagline||"Smart laundry control");const[redMo,sRedMo]=useState(!!cfg.reduceMotion);const[defEm,sDefEm]=useState(cfg.defaultUserEmoji||"😊");const[cStop,sCStop]=useState(cfg.confirmStop!==false);const[aLog,sALog]=useState(cfg.autoLogoutMin||0);const[t24,sT24]=useState(cfg.time24!==false);const[sFin,sSFin]=useState(cfg.soundOnFinish!==false);const[grace,sGrace]=useState(cfg.gracePoweroffMin||5);const[defWash,sDefWash]=useState(cfg.defaultWashMinutes||90);const[dashOrd,sDashOrd]=useState(mergeDashOrder(cfg.dashboardOrder));const[secEn,sSecEn]=useState(cfg.dashboardSectionsEnabled||{});const[clnVis,sClnVis]=useState(cfg.cleaningDoneVisibility||"everyone");const[clnTaskVis,sClnTaskVis]=useState(cfg.cleaningTaskVisibility||"everyone");const[userQ,sUserQ]=useState("");const[histQ,sHistQ]=useState("");const[manMin,sManMin]=useState(5);
+const[cP,sCP]=useState(cfg.primaryColor);const[cA,sCA]=useState(cfg.accentColor);const[tCol,sTCol]=useState(cfg.textColor||"#e2e6ef");const[uiSc,sUiSc]=useState(cfg.uiScale||1);const[aN,sAN]=useState(cfg.appName);const[aM,sAM]=useState(cfg.alertMinutesBefore||5);const[chatEn,sChatEn]=useState(cfg.chatEnabled!==false);const[apEm,sApEm]=useState(cfg.appEmoji||"🫧");const[mntn,sMntn]=useState(!!cfg.maintenance);const[adPw,sAdPw]=useState("");const[tagln,sTagln]=useState(cfg.tagline||"Smart laundry control");const[redMo,sRedMo]=useState(!!cfg.reduceMotion);const[defEm,sDefEm]=useState(cfg.defaultUserEmoji||"😊");const[cStop,sCStop]=useState(cfg.confirmStop!==false);const[aLog,sALog]=useState(cfg.autoLogoutMin||0);const[t24,sT24]=useState(cfg.time24!==false);const[sFin,sSFin]=useState(cfg.soundOnFinish!==false);const[grace,sGrace]=useState(cfg.gracePoweroffMin||5);const[defWash,sDefWash]=useState(cfg.defaultWashMinutes||90);const[secEn,sSecEn]=useState(cfg.dashboardSectionsEnabled||{});const[clnVis,sClnVis]=useState(cfg.cleaningDoneVisibility||"everyone");const[clnTaskVis,sClnTaskVis]=useState(cfg.cleaningTaskVisibility||"everyone");const[userQ,sUserQ]=useState("");const[histQ,sHistQ]=useState("");const[manMin,sManMin]=useState(5);
 const[eu,sEU]=useState(null);const[sfu,sSFU]=useState(false);const[showChat,sC]=useState(false);const[editSch,sES]=useState(null);const[now,sN]=useState(Date.now());const[adLR,sAdLR]=useState(()=>{try{return+(localStorage.getItem("lh_admin_last_read")||0)}catch{return 0}});const[hs,sHs]=useState(null);const[spinStyle,sSpinStyle]=useState(cfg.spinnerStyle||"drop");
 
 const[roster,sRoster]=useState(null);const[completions,sComp]=useState({});
 useEffect(()=>{const a=DB.onUsersChange(sU);const b=DB.onMachineChange(sM);const c=DB.onScheduleChange(sSch);const d=DB.onEsp32Status(sE);const e=DB.onHistoryChange(sH);const f=DB.onChatMessages(sMs);const g=DB.onHisense(sHs);const h=DB.onCleaning(sRoster);const i=DB.onCleaningCompletions(sComp);const iv=setInterval(()=>sN(Date.now()),1000);return()=>{a();b();c();d();e();f();g();h();i();clearInterval(iv)}},[]);
 
 const addU=async()=>{if(!nn.trim()||!np.trim())return toast("Required","error");if(np.length<4)return toast("PIN 4+","error");if(users.find(u=>u.name.toLowerCase()===nn.trim().toLowerCase()))return toast("Exists","error");await DB.addUser({id:Date.now().toString(),name:nn.trim(),pin:np.trim(),emoji:cfg.defaultUserEmoji||"😊",dnd:false,disabled:false});sNN("");sNP("");toast(`${nn.trim()} added`,"success")};
-const saveCfg=async()=>{const u={...cfg,primaryColor:cP,accentColor:cA,textColor:tCol||"#e2e6ef",uiScale:+uiSc||1,appName:aN,appEmoji:(apEm||"🫧").trim()||"🫧",alertMinutesBefore:+aM||5,chatEnabled:chatEn,maintenance:mntn,tagline:tagln.trim()||"Smart laundry control",reduceMotion:redMo,defaultUserEmoji:(defEm||"😊").trim()||"😊",confirmStop:cStop,autoLogoutMin:Math.max(0,+aLog||0),time24:t24,soundOnFinish:sFin,spinnerStyle:spinStyle||"drum",gracePoweroffMin:Math.max(1,Math.min(30,+grace||5)),defaultWashMinutes:Math.max(15,Math.min(240,+defWash||90)),dashboardOrder:dashOrd&&dashOrd.length?dashOrd:["ready","schedule","cleaning","washes","housemates"],dashboardSectionsEnabled:secEn||{},cleaningDoneVisibility:clnVis||"everyone",cleaningTaskVisibility:clnTaskVis||"everyone"};/* Clean up vestigial config keys from old versions */delete u.washCycles;delete u.maxWashMinutes;delete u.minWashMinutes;delete u.esp32Ip;if(adPw.trim())u.adminPassword=adPw.trim();await DB.setConfig(u);setCfg(u);sAdPw("");toast("Saved","success")};
+const saveCfg=async()=>{const u={...cfg,primaryColor:cP,accentColor:cA,textColor:tCol||"#e2e6ef",uiScale:+uiSc||1,appName:aN,appEmoji:(apEm||"🫧").trim()||"🫧",alertMinutesBefore:+aM||5,chatEnabled:chatEn,maintenance:mntn,tagline:tagln.trim()||"Smart laundry control",reduceMotion:redMo,defaultUserEmoji:(defEm||"😊").trim()||"😊",confirmStop:cStop,autoLogoutMin:Math.max(0,+aLog||0),time24:t24,soundOnFinish:sFin,spinnerStyle:spinStyle||"drum",gracePoweroffMin:Math.max(1,Math.min(30,+grace||5)),defaultWashMinutes:Math.max(15,Math.min(240,+defWash||90)),dashboardSectionsEnabled:secEn||{},cleaningDoneVisibility:clnVis||"everyone",cleaningTaskVisibility:clnTaskVis||"everyone"};/* Clean up vestigial config keys from old versions */delete u.washCycles;delete u.maxWashMinutes;delete u.minWashMinutes;delete u.esp32Ip;if(adPw.trim())u.adminPassword=adPw.trim();await DB.setConfig(u);setCfg(u);sAdPw("");toast("Saved","success")};
 const applyTheme=(t)=>{sCP(t.p);sCA(t.a);toast(`${t.n} theme — click Save to apply`,"info")};
 const forceStop=async(msg="Stopped",type="warning")=>{if(cfg.confirmStop!==false&&!(await askConfirm("Force-stop the running machine?")))return;DB.setMachine({running:false});toast(msg,type)};
 const resetUserPin=async(u)=>{const p=await askPrompt(`Set new PIN for ${u.name}:`,"4+ digits");if(!p)return;if(p.length<4)return toast("PIN must be 4+ digits","error");await DB.updateUser(u.id,{pin:p});toast(`PIN reset for ${u.name}`,"success")};
@@ -638,11 +626,11 @@ const clearAllHistory=async()=>{if(!(await askConfirm(`Delete all ${hist.length}
 const resetDefaults=async()=>{if(!(await askConfirm("Reset all settings to defaults? Users, schedule, and history are kept.")))return;await DB.setConfig(DEF);setCfg(DEF);toast("Reset to defaults","info")};
 const on=isOn(esp);
 /* Prefer real Hisense data over the app's pre-set timer so admin time matches user view */
-const hsFresh=hs&&hs.updatedAt&&(Date.now()-hs.updatedAt<45000);const useHs=hsFresh&&(hs.running||hs.paused)&&typeof hs.remainingMin==="number";
+const hsFresh=!cfg.manualMode&&hs&&hs.updatedAt&&(Date.now()-hs.updatedAt<45000);const useHs=hsFresh&&(hs.running||hs.paused)&&typeof hs.remainingMin==="number";
 const hsSaysDone=hsFresh&&!hs.running&&!hs.paused;
 const rmM=useHs?hs.remainingMin:(mac?.running?Math.ceil(Math.max(0,(mac.startTime+mac.durationMs)-now)/60000):0);
 const prog=useHs&&hs.totalMin?Math.max(0,1-(hs.remainingMin/hs.totalMin)):(mac?.running?Math.min(1,(now-mac.startTime)/mac.durationMs):0);
-const graceLeft=hs&&hs.graceUntil?Math.max(0,hs.graceUntil-now):0;const inGrace=graceLeft>0;const graceM=Math.floor(graceLeft/60000);const graceS=Math.floor((graceLeft%60000)/1000);
+const graceLeft=!cfg.manualMode&&hs&&hs.graceUntil?Math.max(0,hs.graceUntil-now):0;const inGrace=graceLeft>0;const graceM=Math.floor(graceLeft/60000);const graceS=Math.floor((graceLeft%60000)/1000);
 const wc={};hist.forEach(h=>{wc[h.userName]=(wc[h.userName]||0)+1});
 const tabs=[{id:"dash",l:"Dashboard"},{id:"users",l:"Users"},{id:"ctrl",l:"Control"},{id:"clean",l:"Cleaning"},{id:"esp",l:"ESP32"},{id:"api",l:"API"},{id:"log",l:"History"},{id:"cfg",l:"Settings"}];
 
@@ -692,15 +680,19 @@ return<div className="lh-scale" style={{minHeight:"100vh",background:bg}}>
 {inGrace&&<button onClick={async()=>{if(!(await askConfirm("Cut power immediately (skip the 5-min grace)?")))return;await DB.setMachine({running:false,lastUser:mac?.userName||"",lastCycle:mac?.cycleName||"",finishedAt:Date.now()});await DB.sendEspCommand({type:"off",ts:Date.now()});toast("Power cut early","info")}} className="nb" style={{marginTop:8,color:"#fbbf24",fontSize:11}}>🔌 Cut power now</button>}
 </div><button onClick={()=>sSFU(true)} className="nb nb-p" style={{width:"100%",background:cfg.primaryColor,marginBottom:14}}>Start for user...</button>{mac?.running&&<button onClick={async()=>{if(!(await askConfirm("EMERGENCY STOP — cut power immediately?")))return;DB.setMachine({running:false});toast("Emergency stop","error")}} className="nb" style={{width:"100%",marginBottom:14,padding:"14px 0",background:"#f87171",color:"#fff",fontWeight:900,fontSize:15,letterSpacing:1}}>🚨 EMERGENCY STOP</button>}
 <div style={{fontSize:13,fontWeight:700,color:"var(--lh-text)",marginBottom:8}}>Manual relay</div><div style={{display:"flex",gap:6,marginBottom:14,alignItems:"stretch"}}><input type="number" value={manMin} onChange={e=>sManMin(e.target.value)} min="1" max="240" className="ni" style={{width:70,textAlign:"center",fontSize:13,fontWeight:700}}/><button onClick={manualOn} className="nb" style={{flex:1,color:"#4ade80",fontWeight:700}}>ON for {Math.max(1,+manMin||5)}m</button><button onClick={()=>forceStop("OFF","info")} className="nb" style={{flex:1,color:"#f87171",fontWeight:700}}>OFF</button></div><div style={{fontSize:13,fontWeight:700,color:"var(--lh-text)",marginBottom:8}}>Per-user</div>{users.filter(x=>!x.disabled).map(u=><div key={u.id} className="sb" style={{padding:"8px 0",borderBottom:`1px solid ${ls}`}}><div className="row"><span style={{fontSize:13}}>{u.emoji||"😊"}</span><span style={{fontSize:12,fontWeight:600,color:"var(--lh-text)"}}>{u.name}</span></div>{(!mac?.running||mac.userId!==u.id)?<button onClick={()=>{if(mac?.running)return toast("Busy","error");DB.setMachine({running:true,userId:u.id,userName:u.name,cycleName:"Admin",startTime:Date.now(),durationMs:45*60000});toast(`ON for ${u.name}`,"success")}} className="nb" style={{fontSize:9,padding:"3px 10px",color:"#4ade80"}}>Start</button>:<button onClick={()=>forceStop("Stopped","info")} className="nb" style={{fontSize:9,padding:"3px 10px",color:"#f87171"}}>Stop</button>}</div>)}
-{/* ── EMERGENCY RESET — use when Hisense Connect Life is stuck reporting "running" but machine is actually OFF ── */}
-<div className="nm-in" style={{padding:"12px 14px",marginTop:14,marginBottom:14,border:"1px solid #fbbf2433"}}>
-  <div className="sb" style={{marginBottom:8}}>
-    <div><div style={{fontSize:11,color:"#fbbf24",fontWeight:800,letterSpacing:.5}}>⚠ HISENSE STUCK?</div><div style={{fontSize:10,color:"var(--lh-text2)",marginTop:2}}>Use if Connect Life shows "running" but the machine is actually OFF</div></div>
+{/* Manual mode — replaces the old "Hisense stuck" detection/emergency-reset band-aid,
+    which never reliably worked since it was guessing at staleness instead of just
+    turning ConnectLife off. While this is on: the poller never mirrors, grace-cuts,
+    or idle-cuts based on Hisense data, and the user Home tab switches to a plain
+    duration-entry timer instead of the ConnectLife-driven status view. */}
+<div className="nm-in" style={{padding:"12px 14px",marginTop:14,marginBottom:14,border:`1px solid ${cfg.manualMode?"#4ade8055":"var(--lh-border)"}`}}>
+  <div className="sb">
+    <div style={{flex:1,paddingRight:10}}>
+      <div style={{fontSize:12,fontWeight:800,color:"var(--lh-text)"}}>Manual mode</div>
+      <div style={{fontSize:10,color:"var(--lh-text2)",marginTop:2,lineHeight:1.4}}>Users run the machine with a timer instead of ConnectLife. Turn on if Hisense is unreliable.</div>
+    </div>
+    <Tog on={!!cfg.manualMode} onChange={async()=>{const next={...cfg,manualMode:!cfg.manualMode};await DB.setConfig(next);setCfg(next);toast(next.manualMode?"Manual mode on":"Manual mode off","info")}} color="#4ade80"/>
   </div>
-  {(()=>{const muted=hs?.muteUntil&&hs.muteUntil>Date.now();const muteLeft=muted?Math.ceil((hs.muteUntil-Date.now())/60000):0;return<>
-  {muted&&<div style={{fontSize:10,color:"#fbbf24",marginBottom:8,padding:"6px 10px",background:"#fbbf2411",borderRadius:6,fontWeight:700}}>🔇 Hisense mirroring paused — {muteLeft}m left <button onClick={async()=>{await DB.clearHisenseMute();toast("Unmuted","info")}} style={{marginLeft:8,background:"transparent",border:"none",color:cfg.primaryColor,fontSize:10,fontWeight:700,cursor:"pointer",textDecoration:"underline"}}>Resume now</button></div>}
-  <button onClick={async()=>{if(!(await askConfirm("Emergency reset: clear machine state, pause Hisense mirroring for 10 min, and open the relay?\n\nUse this ONLY if Hisense is stuck reporting a wash that isn't actually happening.")))return;try{await DB.emergencyReset({reason:"admin_hisense_stuck",muteMinutes:10});toast("Reset done — Hisense muted for 10 min","success")}catch(e){toast("Reset failed","error")}}} className="nb" style={{width:"100%",padding:"10px 0",fontSize:12,fontWeight:800,color:"#fbbf24",border:"1px solid #fbbf2444"}}>🔄 Emergency reset (clear stuck state)</button>
-  </>})()}
 </div>
 {sch.length>0&&<><div style={{fontSize:13,fontWeight:700,color:"var(--lh-text)",marginTop:14,marginBottom:8}}>Reservations ({sch.length})</div>{sch.map(s=>{const endT=s.endTime||(()=>{const[h,m]=(s.startTime||s.dateTime?.split("T")[1]||"00:00").split(":").map(Number);const en=new Date(2000,0,1,h,m+(s.minutes||45));return en.toTimeString().slice(0,5)})();return<div key={s.id} className="sb" style={{padding:"8px 0",borderBottom:`1px solid ${ls}`}}><div className="row"><span style={{fontSize:13}}>{s.userEmoji||"😊"}</span><div><div style={{fontSize:12,fontWeight:700,color:"var(--lh-text)"}}>{s.userName}</div><div style={{fontSize:10,color:"var(--lh-text3)"}}>{s.cycleName} · {new Date(s.dateTime).toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"})}</div><div className="M" style={{fontSize:11,color:"var(--lh-text2)"}}>{s.startTime||s.dateTime?.split("T")[1]||"?"} → {endT}</div></div></div><div className="row" style={{gap:3}}><button onClick={()=>sES(s)} className="nb" style={{fontSize:9,padding:"3px 8px",color:cfg.primaryColor}}>Edit</button><button onClick={async()=>{await DB.removeScheduleEntry(s.id);toast(`Cancelled ${s.userName}'s reservation`,"info")}} className="nb" style={{fontSize:9,padding:"3px 8px",color:"#f87171"}}>Cancel</button></div></div>})}<button onClick={async()=>{await DB.clearSchedule();toast("All reservations cleared","info")}} className="nb" style={{marginTop:8,width:"100%",color:"#f87171",fontSize:11}}>Clear all reservations</button></>}
 </div>}
@@ -825,7 +817,7 @@ return<div className="nm"><div className="sec">API & data pipeline</div>
 </div>
 <div className="nm-in" style={{padding:"12px 14px"}}>
   <div className="sec" style={{fontSize:13,marginBottom:10}}>🔍 Raw Hisense payload</div>
-  <pre style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,lineHeight:1.5,color:"var(--lh-text2)",background:"#0a0e18",padding:12,borderRadius:8,maxHeight:200,overflow:"auto",margin:0}}>{hs?JSON.stringify({running:hs.running,paused:hs.paused,ended:hs.ended,phaseName:hs.phaseName,remainingMin:hs.remainingMin,totalMin:hs.totalMin,waterLiters:hs.waterLiters,energyKwh:hs.energyKwh,doorLocked:hs.doorLocked,power:hs.power,programId:hs.programId,online:hs.online,nickname:hs.nickname,deviceId:hs.deviceId},null,2):"(no data received yet — Fly.io poller may be down)"}</pre>
+  <pre style={{fontFamily:"'JetBrains Mono',monospace",fontSize:9,lineHeight:1.5,color:"var(--lh-text2)",background:"#0a0e18",padding:12,borderRadius:8,maxHeight:200,overflow:"auto",margin:0}}>{hs?JSON.stringify({manualMode:hs.manualMode,running:hs.running,paused:hs.paused,ended:hs.ended,phaseName:hs.phaseName,remainingMin:hs.remainingMin,totalMin:hs.totalMin,waterLiters:hs.waterLiters,energyKwh:hs.energyKwh,doorLocked:hs.doorLocked,power:hs.power,programId:hs.programId,online:hs.online,nickname:hs.nickname,deviceId:hs.deviceId},null,2):"(no data received yet — Fly.io poller may be down)"}</pre>
 </div>
 </div>})()}
 
@@ -859,22 +851,19 @@ return<div className="nm"><div className="sec">API & data pipeline</div>
 <TR t="Beep when wash finishes" d="Play a tone when machine frees" on={sFin} onChange={()=>sSFin(!sFin)} color={cfg.primaryColor}/>
 </SH>
 
-<SH i="🗂" t="USER DASHBOARD LAYOUT">
+{/* Sections live in fixed tabs now (Home/Schedule/Activity/Profile) — this just
+    hides a feature entirely when a household doesn't use it. No reordering:
+    tab positions are fixed, so there's nothing left to reorder. */}
+<SH i="🗂" t="FEATURES">
 {(()=>{
-const LABELS={ready:{i:"💦",l:"Ready to wash"},schedule:{i:"📅",l:"Schedule & reservations"},cleaning:{i:"🧹",l:"Cleaning week"},washes:{i:"✨",l:"My washes"},housemates:{i:"🏠",l:"Housemates"}};
-const move=(idx,dir)=>{const o=[...dashOrd];const ni=idx+dir;if(ni<0||ni>=o.length)return;[o[idx],o[ni]]=[o[ni],o[idx]];sDashOrd(o)};
+const LABELS={ready:"Ready to wash — Home tab",schedule:"Schedule — Schedule tab",cleaning:"Cleaning — Home + Activity tabs",washes:"My washes — Activity tab",housemates:"Housemates — Profile tab"};
 const isOn=(k)=>secEn[k]!==false;
 const toggle=(k)=>sSecEn({...secEn,[k]:!isOn(k)});
-return<><div style={{fontSize:11,color:"var(--lh-text2)",marginBottom:8,lineHeight:1.5}}>Use the toggle to enable/disable a section, arrows to reorder. Applies to every user's dashboard. Don't forget to save.</div>
-{dashOrd.map((k,i)=>{const L=LABELS[k]||{i:"❔",l:k};const on=isOn(k);return<div key={k} className="nm-in" style={{padding:"10px 12px",marginBottom:6,display:"flex",alignItems:"center",gap:10,opacity:on?1:.55}}>
-  <span className="M" style={{fontSize:10,color:"var(--lh-text3)",width:14,textAlign:"right"}}>{i+1}</span>
-  <span style={{fontSize:16,filter:on?"none":"grayscale(.7)"}}>{L.i}</span>
-  <div style={{flex:1,fontSize:12,fontWeight:700,color:on?"var(--lh-text)":"var(--lh-text3)",textDecoration:on?"none":"line-through"}}>{L.l}</div>
+return<>{SECTION_DEFAULT_ORDER.map(k=>{const on=isOn(k);return<div key={k} className="nm-in" style={{padding:"10px 12px",marginBottom:6,display:"flex",alignItems:"center",gap:10,opacity:on?1:.55}}>
+  <div style={{flex:1,fontSize:12,fontWeight:700,color:on?"var(--lh-text)":"var(--lh-text3)",textDecoration:on?"none":"line-through"}}>{LABELS[k]||k}</div>
   <Tog on={on} onChange={()=>toggle(k)} color={cfg.primaryColor}/>
-  <button onClick={()=>move(i,-1)} disabled={i===0} className="nb" style={{padding:"4px 10px",fontSize:11,opacity:i===0?.3:1,cursor:i===0?"not-allowed":"pointer"}}>↑</button>
-  <button onClick={()=>move(i,1)} disabled={i===dashOrd.length-1} className="nb" style={{padding:"4px 10px",fontSize:11,opacity:i===dashOrd.length-1?.3:1,cursor:i===dashOrd.length-1?"not-allowed":"pointer"}}>↓</button>
 </div>})}
-<div style={{fontSize:10,color:"var(--lh-text3)",marginTop:8,fontStyle:"italic"}}>Tip: Cleaning week only shows for the 5 chosen participants — others see only the enabled non-cleaning sections.</div>
+<div style={{fontSize:10,color:"var(--lh-text3)",marginTop:8,fontStyle:"italic"}}>Cleaning only shows for the 5 chosen participants.</div>
 </>})()}
 
 <div style={{marginTop:14,paddingTop:12,borderTop:`1px solid ${ls}`}}><div style={{fontSize:10,color:"var(--lh-text2)",fontWeight:800,letterSpacing:1,marginBottom:6}}>🧹 CLEANING PRIVACY</div>

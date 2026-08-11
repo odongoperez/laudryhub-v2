@@ -130,6 +130,29 @@ _GRACE_CACHE = 300  # 5 min default
 _GRACE_CACHE_AT = 0.0
 
 
+def get_manual_mode(refs: dict) -> bool:
+    """Read /config/manualMode. When true, the household has switched to manual
+    control and this poller must not touch /machine at all — no mirroring, no
+    grace-cut, no idle-cut. Those all trust Hisense's running/paused/ended
+    flags, which is exactly what manual mode exists to route around. Cached
+    for 15s to avoid hammering Firebase every poll tick."""
+    global _MANUAL_CACHE, _MANUAL_CACHE_AT
+    now = time.time()
+    if now - _MANUAL_CACHE_AT < 15:
+        return _MANUAL_CACHE
+    try:
+        v = refs["config"].child("manualMode").get()
+        _MANUAL_CACHE = bool(v)
+    except Exception:
+        _MANUAL_CACHE = False
+    _MANUAL_CACHE_AT = now
+    return _MANUAL_CACHE
+
+
+_MANUAL_CACHE = False
+_MANUAL_CACHE_AT = 0.0
+
+
 def cut_relay(refs: dict, reason: str, note: str) -> None:
     """Set /machine.running=false and log a notification the app will toast."""
     try:
@@ -169,22 +192,12 @@ def apply_control_logic(refs: dict, state: dict, memo: dict) -> None:
     paused = bool(state.get("paused"))
     ended = bool(state.get("ended"))
 
-    # Check if admin has muted Hisense mirroring (because Connect Life was stuck
-    # reporting a ghost wash). While muted, we skip mirror logic so the cleared
-    # /machine state stays clean.
-    mute_until = 0
-    try:
-        existing_hs = refs["hisense"].get() or {}
-        mute_until = int(existing_hs.get("muteUntil") or 0)
-    except Exception:
-        pass
-    muted = mute_until > now
-
     # Mirror Hisense -> /machine when the machine is actually active but the
     # relay flag is off (e.g. user pressed Start on the panel without going
     # through the app). The ESP32 then keeps the relay closed throughout the
-    # wash automatically. Skipped while admin-muted.
-    if (running or paused) and not relay_on and not muted:
+    # wash automatically. (Caller already skips this whole function entirely
+    # while manual mode is on — see get_manual_mode() / main().)
+    if (running or paused) and not relay_on:
         try:
             info = dict(machine) if machine else {}
             info["running"] = True
@@ -200,11 +213,6 @@ def apply_control_logic(refs: dict, state: dict, memo: dict) -> None:
             log.info("mirrored Hisense->machine: wash detected, relay stays on")
         except Exception as e:
             log.warning("failed to mirror running state: %s", e)
-    elif muted and (running or paused) and not relay_on:
-        log.info(
-            "skipping mirror — Hisense mirroring muted by admin (%ds left)",
-            int((mute_until - now) / 1000),
-        )
 
     # Track relay-on start
     if relay_on and not memo.get("last_relay_on"):
@@ -483,28 +491,32 @@ async def main() -> None:
                 am_active = (active == POLLER_ID)
 
                 if am_active:
-                    apply_control_logic(refs, state, memo)
-                    state["graceUntil"] = int(memo.get("grace_until") or 0)
-                    # Preserve admin-set mute flag across writes so emergency reset
-                    # actually keeps the mirror logic disabled for its full window.
-                    try:
-                        existing = refs["hisense"].get() or {}
-                        mu = int(existing.get("muteUntil") or 0)
-                        if mu > int(time.time() * 1000):
-                            state["muteUntil"] = mu
-                            state["mutedBy"] = existing.get("mutedBy")
-                    except Exception:
-                        pass
-                    state["pollerSource"] = POLLER_ID
-                    refs["hisense"].set(state)
-                    log.info(
-                        "[ACTIVE:%s] state: running=%s paused=%s ended=%s remaining=%dm door=%s",
-                        POLLER_ID, state["running"], state["paused"], state["ended"],
-                        state["remainingMin"], state["doorLocked"],
-                    )
-                    raw = state.get("raw", {})
-                    nonzero = {k: v for k, v in raw.items() if v not in (None, "", 0, "0", "null")}
-                    log.info("raw (non-empty): %s", nonzero)
+                    manual_mode = get_manual_mode(refs)
+                    state["manualMode"] = manual_mode
+                    if manual_mode:
+                        # Admin has switched to manual control — never touch /machine.
+                        # Still publish /hisense so the admin panel can show what
+                        # ConnectLife is reporting, purely for reference.
+                        state["graceUntil"] = 0
+                        state["pollerSource"] = POLLER_ID
+                        refs["hisense"].set(state)
+                        log.info(
+                            "[ACTIVE:%s] manual mode ON — not touching /machine. Hisense reports running=%s remaining=%dm",
+                            POLLER_ID, state["running"], state["remainingMin"],
+                        )
+                    else:
+                        apply_control_logic(refs, state, memo)
+                        state["graceUntil"] = int(memo.get("grace_until") or 0)
+                        state["pollerSource"] = POLLER_ID
+                        refs["hisense"].set(state)
+                        log.info(
+                            "[ACTIVE:%s] state: running=%s paused=%s ended=%s remaining=%dm door=%s",
+                            POLLER_ID, state["running"], state["paused"], state["ended"],
+                            state["remainingMin"], state["doorLocked"],
+                        )
+                        raw = state.get("raw", {})
+                        nonzero = {k: v for k, v in raw.items() if v not in (None, "", 0, "0", "null")}
+                        log.info("raw (non-empty): %s", nonzero)
                 else:
                     log.info(
                         "[STANDBY:%s] active poller is '%s' — skipping write. running=%s remaining=%dm",

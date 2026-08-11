@@ -64,30 +64,6 @@ const DB = {
   onEsp32Status(cb) { return onValue(ref(db, "esp32_status"), s => cb(s.exists() ? s.val() : null)); },
   async sendEspCommand(cmd) { await set(ref(db, "esp32_command"), cmd); },
 
-  // ── Emergency reset (for when Hisense is stuck in "running" state) ──
-  // 1. Wipes /machine to a clean idle state
-  // 2. Sets /hisense/muteUntil so the poller temporarily stops mirroring (so it
-  //    doesn't immediately re-mirror the ghost "running" state back)
-  // 3. Sends "off" to the ESP32 so the relay opens immediately
-  async emergencyReset({ reason = "admin_reset", muteMinutes = 10 } = {}) {
-    const now = Date.now();
-    const muteUntil = now + muteMinutes * 60 * 1000;
-    await set(ref(db, "machine"), {
-      running: false,
-      forceResetAt: now,
-      stoppedBy: reason,
-      finishedAt: now,
-    });
-    // Mute Hisense mirroring for N minutes — poller checks this before mirroring
-    await update(ref(db, "hisense"), { muteUntil, mutedBy: reason });
-    // Open the relay immediately (don't wait for ESP32's debounce)
-    await set(ref(db, "esp32_command"), { type: "off", ts: now });
-    return { muteUntil };
-  },
-  async clearHisenseMute() {
-    await update(ref(db, "hisense"), { muteUntil: 0, mutedBy: null });
-  },
-
   // ── Active poller switch ─────────────────────────────────────
   // /config/activePoller = "fly" | "pc". Both poller instances read this every
   // cycle and only the matching one writes to Firebase.

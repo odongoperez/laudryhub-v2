@@ -14,9 +14,6 @@
     "esp32_command": { ".read": true,           ".write": "auth != null" },
 
     "hisense":       { ".read": "auth != null", ".write": "auth != null" },
-    "notifications": { ".read": "auth != null", ".write": false, ".indexOn": ["ts"] },
-    "relay_state":   { ".read": true,           ".write": true },
-    "relay_command": { ".read": true,           ".write": "auth != null" },
-    "status":        { ".read": true,           ".write": true }
+    "notifications": { ".read": "auth != null", ".write": false, ".indexOn": ["ts"] }
   }
 }
