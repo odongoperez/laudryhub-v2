@@ -4,9 +4,14 @@
   padding: 0;
 }
 
+:root {
+  --lh-bg: #1e2233;
+  --lh-text: #e2e6ef;
+}
+
 body {
-  font-family: 'DM Sans', 'Segoe UI', sans-serif;
-  background: #0f172a;
-  color: #f1f5f9;
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+  background: var(--lh-bg);
+  color: var(--lh-text);
   -webkit-font-smoothing: antialiased;
 }

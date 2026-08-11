@@ -1,3 +1,4 @@
+import "./globals.css";
 import PwaRegister from "./pwa-register";
 
 export const metadata = {
@@ -19,7 +20,7 @@ export default function RootLayout({ children }) {
         <link rel="icon" href="/icon-512.png" />
         <link rel="apple-touch-icon" href="/icon-512.png" />
       </head>
-      <body suppressHydrationWarning style={{ margin: 0, padding: 0, background: "#1e2233" }}>
+      <body suppressHydrationWarning style={{ margin: 0, padding: 0 }}>
         {children}
         <PwaRegister />
       </body>

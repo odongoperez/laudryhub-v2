@@ -6,9 +6,11 @@ node_modules/
 # testing
 /coverage
 
-# next.js
-/.next/
-/out/
+# next.js (match anywhere, not just root — app folder is a subdir)
+.next/
+**/.next/
+out/
+**/out/
 
 # production
 /build
