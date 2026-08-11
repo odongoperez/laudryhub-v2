@@ -48,7 +48,7 @@
 #define WIFI_PASSWORD  "Stechbahn1801!"
 #define FIREBASE_URL   "https://laundryhub-4e35b-default-rtdb.europe-west1.firebasedatabase.app"
 #define RELAY_PIN       2
-#define RELAY_ACTIVE_LOW false
+#define RELAY_ACTIVE_LOW true
 
 // Self-heal thresholds (milliseconds)
 const unsigned long WIFI_DEAD_REBOOT_MS    = 5UL * 60UL * 1000UL;   // 5 min

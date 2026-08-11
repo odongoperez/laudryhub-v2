@@ -531,9 +531,9 @@ sections.ready=!(mac?.running||useHs)?<div className="nm" style={{marginBottom:1
 <div className="sec">Ready to wash</div>
 {cfg.manualMode?<>
 <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:12}}><input type="number" min="1" max="240" aria-label="Minutes" value={manDur} onChange={e=>sManDur(e.target.value)} className="ni" style={{width:90,textAlign:"center",fontWeight:700}}/><span style={{fontSize:12,color:"var(--lh-text2)"}}>minutes</span></div>
-<button onClick={()=>go(Math.max(1,+manDur||90),"Wash")} className="nb nb-p" style={{width:"100%",padding:"16px 0",fontSize:16,fontWeight:800,background:on&&!blocked?cfg.primaryColor:"var(--lh-text3)",borderRadius:14,letterSpacing:.3}}>{!on?"Machine offline":blocked?`Reserved by ${blocked.userName}`:`Start wash — ${Math.max(1,+manDur||90)}m`}</button>
+<button onClick={()=>go(Math.max(1,+manDur||90),"Wash")} className="nb nb-p" style={{width:"100%",padding:"16px 0",fontSize:16,fontWeight:800,background:on&&!blocked?cfg.primaryColor:"var(--lh-text3)",borderRadius:14,letterSpacing:.3}}>{!on?"Machine offline":blocked?`Reserved by ${blocked.userName}`:"Start wash"}</button>
 </>:
-<button onClick={start} className="nb nb-p" style={{width:"100%",padding:"16px 0",fontSize:16,fontWeight:800,background:on&&!blocked?cfg.primaryColor:"var(--lh-text3)",borderRadius:14,letterSpacing:.3}}>{!on?"Machine offline":blocked?`Reserved by ${blocked.userName}`:(()=>{const m=cfg.defaultWashMinutes||90;const h=Math.floor(m/60);const mm=m%60;return`Start wash — ${h>0?h+"h ":""}${mm>0?mm+"m":""}`.trim()})()}</button>}
+<button onClick={start} className="nb nb-p" style={{width:"100%",padding:"16px 0",fontSize:16,fontWeight:800,background:on&&!blocked?cfg.primaryColor:"var(--lh-text3)",borderRadius:14,letterSpacing:.3}}>{!on?"Machine offline":blocked?`Reserved by ${blocked.userName}`:"Start wash"}</button>}
 </div>:null;
 
 /* Schedule = booking form + Reservations list. Kept together as one logical section. */
